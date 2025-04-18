@@ -18,7 +18,22 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": null,
+      "capabilities": [
+        {
+          "identifier": "main-user-files-write-read",
+          "description": "Allows the main window to write and read files and open file dialogs.",
+          "windows": ["main"],
+          "permissions": [
+            "dialog:default",
+            "fs:allow-write-file",
+            "fs:allow-read-file",
+            "fs:allow-mkdir",
+            "fs:allow-read-text-file",
+            "fs:allow-write-text-file"
+          ]
+        }
+      ]
     }
   },
   "bundle": {

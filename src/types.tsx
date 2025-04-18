@@ -29,7 +29,7 @@ export type TagCategory = {
   export type Work = {
     id: string;
     title: string;
-    folderPath?: string; // 新規作成フォルダの絶対パス
+    nowfilePath?: string
     description?: string;
     characters: Character[];
     relations?: Relation[];

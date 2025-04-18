@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { saveWork, loadWork } from './lib/WorkManager';
+import { saveWorkAs, loadWork,overwriteWork } from './lib/WorkManager';
 import CharacterForm from './components/CharacterForm';
 import WorkForm from './components/WorkForm';
 import RelationForm from './components/RelationForm';
@@ -38,7 +38,8 @@ function App() {
         <button onClick={() => { setCurrentWork(null); setMode('new-work'); }} className="btn">新規作成</button>
         <button onClick={() => setMode('add-character')} className="btn" disabled={!currentWork}>キャラ追加</button>
         <button onClick={() => setMode('add-relation')} className="btn" disabled={!currentWork}>関係性追加</button>
-        <button onClick={() => currentWork && saveWork(currentWork)} className="btn" disabled={!currentWork}>保存</button>
+        <button onClick={() => currentWork && saveWorkAs(currentWork)} className="btn" disabled={!currentWork}>新規保存</button>
+        <button onClick={() => currentWork && overwriteWork(currentWork)} className="btn" disabled={!currentWork}>上書き</button>
         <button onClick={async () => {
           const loaded = await loadWork();
           if (loaded) {

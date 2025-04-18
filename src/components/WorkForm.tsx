@@ -1,7 +1,5 @@
 import { useState } from 'react';
 import { TagCategory, Character, Work } from '../types';
-import { writeFile,mkdir} from '@tauri-apps/plugin-fs';
-import { open} from '@tauri-apps/plugin-dialog';
 
 export default function WorkForm({ onSubmit }: { onSubmit: (work: Work) => void }) {
   const [title, setTitle] = useState('');
@@ -13,54 +11,25 @@ export default function WorkForm({ onSubmit }: { onSubmit: (work: Work) => void 
       return;
     }
 
-    const folder = await open({
-      directory: true,
-      multiple: false,
-      title: '保存先のフォルダを選んでください',
-    });
-
-    if (typeof folder !== 'string') {
-      alert("保存先フォルダが選択されませんでした");
-      return;
-    }
-
-    // サブフォルダ名を作品タイトルに
-    const newFolderPath = `${folder}/${title.replace(/\s+/g, '_')}`;
-
-    await mkdir(newFolderPath, { recursive: true });
-
     const now = new Date().toISOString();
+
     const genderCategory: TagCategory = {
       id: crypto.randomUUID(),
       name: "性別",
       options: ["男性", "女性", "その他"],
       multi: false,
     };
-
-    const mainCharacter: Character = {
-      id: crypto.randomUUID(),
-      name: "main",
-      tags: {
-        [genderCategory.name]: [genderCategory.options[0]],
-      },
-      status: "alive",
-    };
-
     const newWork: Work = {
       id: crypto.randomUUID(),
       title,
-      characters: [mainCharacter],
+      characters: [],
       tagCategories: [genderCategory],
+      
       createdAt: now,
       updatedAt: now,
       relations: [],
-      folderPath: newFolderPath,
+      // ✅ 保存されていない状態なので folderPath は含めない
     };
-
-    const json = JSON.stringify(newWork, null, 2);
-    const encoder = new TextEncoder();
-    const encodeJson = encoder.encode(json);
-    await writeFile( `${newFolderPath}/work.json`, encodeJson );
 
     onSubmit(newWork);
     setTitle('');
