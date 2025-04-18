@@ -1,0 +1,90 @@
+import { useState } from 'react';
+import { saveWork, loadWork } from './lib/WorkManager';
+import CharacterForm from './components/CharacterForm';
+import WorkForm from './components/WorkForm';
+import RelationForm from './components/RelationForm';
+import { Work, Character, Relation } from './types';
+
+type Mode = 'none' | 'new-work' | 'add-character' | 'add-relation';
+
+function App() {
+  const [currentWork, setCurrentWork] = useState<Work | null>(null);
+  const [mode, setMode] = useState<Mode>('none');
+
+  const handleAddCharacter = (char: Character) => {
+    if (!currentWork) return;
+    const updated = {
+      ...currentWork,
+      characters: [...currentWork.characters, char],
+      updatedAt: new Date().toISOString(),
+    };
+    setCurrentWork(updated);
+  };
+
+  const handleAddRelation = (rel: Relation) => {
+    if (!currentWork) return;
+    const updated = {
+      ...currentWork,
+      relations: [...(currentWork.relations || []), rel],
+      updatedAt: new Date().toISOString(),
+    };
+    setCurrentWork(updated);
+  };
+
+  return (
+    <div className="h-screen flex flex-col bg-gray-50 font-sans">
+      {/* 上部メニューボタンバー */}
+      <div className="bg-gray-200 p-2 flex gap-2">
+        <button onClick={() => { setCurrentWork(null); setMode('new-work'); }} className="btn">新規作成</button>
+        <button onClick={() => setMode('add-character')} className="btn" disabled={!currentWork}>キャラ追加</button>
+        <button onClick={() => setMode('add-relation')} className="btn" disabled={!currentWork}>関係性追加</button>
+        <button onClick={() => currentWork && saveWork(currentWork)} className="btn" disabled={!currentWork}>保存</button>
+        <button onClick={async () => {
+          const loaded = await loadWork();
+          if (loaded) {
+            setCurrentWork(loaded);
+            setMode('none');
+          }
+        }} className="btn">読み込み</button>
+      </div>
+
+      {/* 二画面レイアウト */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* 左側：フォーム切り替え */}
+        <div className="w-1/2 p-4 overflow-auto border-r bg-white">
+          {mode === 'new-work' && (
+            <WorkForm onSubmit={work => { setCurrentWork(work); setMode('none'); }} />
+          )}
+          {mode === 'add-character' && currentWork && (
+            <CharacterForm
+              tagCategories={currentWork.tagCategories}
+              onSubmit={handleAddCharacter}
+            />
+          )}
+          {mode === 'add-relation' && currentWork && (
+            <RelationForm
+              characters={currentWork.characters}
+              onSubmit={handleAddRelation}
+            />
+          )}
+          {mode === 'none' && (
+            <p className="text-gray-500">左のメニューから操作を選んでください。</p>
+          )}
+        </div>
+
+        {/* 右側：JSON（または将来的にグラフ） */}
+        <div className="w-1/2 p-4 overflow-auto bg-gray-100">
+          {currentWork ? (
+            <pre className="bg-white p-3 border rounded text-sm whitespace-pre-wrap">
+              {JSON.stringify(currentWork, null, 2)}
+            </pre>
+          ) : (
+            <p className="text-gray-500">作品が読み込まれていません。</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default App;
