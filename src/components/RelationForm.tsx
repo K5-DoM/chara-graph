@@ -1,10 +1,13 @@
 import { useState } from 'react';
 import { Character, Relation } from '../types';
 
-export default function RelationForm({ characters, onSubmit }: {
+type Props = {
   characters: Character[];
-  onSubmit: (relation: Relation) => void;
-}) {
+  existingrelations: Relation[];
+  onUpdate: (relations: Relation[]) => void;
+};
+
+export default function RelationForm({ characters, existingrelations, onUpdate }: Props) {
   const [sourceId, setSourceId] = useState('');
   const [targetId, setTargetId] = useState('');
   const [label, setLabel] = useState('');
@@ -22,9 +25,10 @@ export default function RelationForm({ characters, onSubmit }: {
       targetId,
       label: label.trim(),
     };
-    onSubmit(newRelation);
 
-    // フォーム初期化
+    const updated = [...existingrelations, newRelation];
+    onUpdate(updated);
+
     setSourceId('');
     setTargetId('');
     setLabel('');
@@ -39,9 +43,7 @@ export default function RelationForm({ characters, onSubmit }: {
         <select value={sourceId} onChange={e => setSourceId(e.target.value)} className="border p-1 w-full">
           <option value="">-- 選択してください --</option>
           {characters.map(char => (
-            <option key={char.id} value={char.id}>
-              {char.name}
-            </option>
+            <option key={char.id} value={char.id}>{char.name}</option>
           ))}
         </select>
       </div>
@@ -51,9 +53,7 @@ export default function RelationForm({ characters, onSubmit }: {
         <select value={targetId} onChange={e => setTargetId(e.target.value)} className="border p-1 w-full">
           <option value="">-- 選択してください --</option>
           {characters.map(char => (
-            <option key={char.id} value={char.id}>
-              {char.name}
-            </option>
+            <option key={char.id} value={char.id}>{char.name}</option>
           ))}
         </select>
       </div>
@@ -64,7 +64,7 @@ export default function RelationForm({ characters, onSubmit }: {
           className="border p-1 w-full"
           value={label}
           onChange={e => setLabel(e.target.value)}
-          placeholder="例：兄妹、師弟、宿敵 など"
+          placeholder="例：兄妹、宿敵、師弟 など"
         />
       </div>
 

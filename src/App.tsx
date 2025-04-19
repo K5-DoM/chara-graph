@@ -3,32 +3,40 @@ import { saveWorkAs, loadWork,overwriteWork } from './lib/WorkManager';
 import CharacterForm from './components/CharacterForm';
 import WorkForm from './components/WorkForm';
 import RelationForm from './components/RelationForm';
-import { Work, Character, Relation } from './types';
+import TagCategoryForm from './components/TagCategoryForm';
+import { Work, Character, Relation,TagCategory} from './types';
 
-type Mode = 'none' | 'new-work' | 'add-character' | 'add-relation';
+type Mode = 'none' | 'new-work' | 'add-character' | 'add-relation'|'add-tagcat';
 
 function App() {
   const [currentWork, setCurrentWork] = useState<Work | null>(null);
   const [mode, setMode] = useState<Mode>('none');
 
-  const handleAddCharacter = (char: Character) => {
+  const handleUpdateCharacters = (updated: Character[]) => {
     if (!currentWork) return;
-    const updated = {
+    setCurrentWork({
       ...currentWork,
-      characters: [...currentWork.characters, char],
+      characters: updated,
       updatedAt: new Date().toISOString(),
-    };
-    setCurrentWork(updated);
+    });
+  };
+  
+  const handleUpdateRelations = (updated: Relation[]) => {
+    if (!currentWork) return;
+    setCurrentWork({
+      ...currentWork,
+      relations: updated,
+      updatedAt: new Date().toISOString(),
+    });
   };
 
-  const handleAddRelation = (rel: Relation) => {
+  const handleUpdateTagCategories = (updated: TagCategory[]) => {
     if (!currentWork) return;
-    const updated = {
+    setCurrentWork({
       ...currentWork,
-      relations: [...(currentWork.relations || []), rel],
+      tagCategories: updated,
       updatedAt: new Date().toISOString(),
-    };
-    setCurrentWork(updated);
+    });
   };
 
   return (
@@ -36,8 +44,6 @@ function App() {
       {/* 上部メニューボタンバー */}
       <div className="bg-gray-200 p-2 flex gap-2">
         <button onClick={() => { setCurrentWork(null); setMode('new-work'); }} className="btn">新規作成</button>
-        <button onClick={() => setMode('add-character')} className="btn" disabled={!currentWork}>キャラ追加</button>
-        <button onClick={() => setMode('add-relation')} className="btn" disabled={!currentWork}>関係性追加</button>
         <button onClick={() => currentWork && saveWorkAs(currentWork)} className="btn" disabled={!currentWork}>新規保存</button>
         <button onClick={() => currentWork && overwriteWork(currentWork)} className="btn" disabled={!currentWork}>上書き</button>
         <button onClick={async () => {
@@ -47,6 +53,9 @@ function App() {
             setMode('none');
           }
         }} className="btn">読み込み</button>
+        <button onClick={() => setMode('add-character')} className="btn" disabled={!currentWork}>キャラ</button>
+        <button onClick={() => setMode('add-relation')} className="btn" disabled={!currentWork}>関係性</button>
+        <button onClick={() => setMode('add-tagcat')} className="btn" disabled={!currentWork}>タグカテゴリ</button>
       </div>
 
       {/* 二画面レイアウト */}
@@ -59,13 +68,21 @@ function App() {
           {mode === 'add-character' && currentWork && (
             <CharacterForm
               tagCategories={currentWork.tagCategories}
-              onSubmit={handleAddCharacter}
+              existingCharacters={currentWork.characters}
+              onUpdate={handleUpdateCharacters}
             />
           )}
           {mode === 'add-relation' && currentWork && (
             <RelationForm
               characters={currentWork.characters}
-              onSubmit={handleAddRelation}
+              existingrelations={currentWork.relations}
+              onUpdate={handleUpdateRelations}
+            />
+          )}
+          {mode === 'add-tagcat' && currentWork && (
+            <TagCategoryForm
+              tagCategories={currentWork.tagCategories}
+              onUpdate={handleUpdateTagCategories}
             />
           )}
           {mode === 'none' && (

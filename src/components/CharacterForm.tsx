@@ -1,91 +1,99 @@
-import React from 'react';
 import { useState } from 'react';
-import { Character, TagCategory } from '../types'; // 型ファイルを適宜調整
+import { Character, TagCategory } from '../types';
 
-export default function CharacterForm({ onSubmit, tagCategories }: {
-  onSubmit: (char: Character) => void;
+type Props = {
   tagCategories: TagCategory[];
-}) {
+  existingCharacters: Character[]; // 現在のキャラ一覧を受け取る
+  onUpdate: (updated: Character[]) => void;
+};
+
+export default function CharacterForm({ tagCategories, existingCharacters,onUpdate }: Props) {
   const [name, setName] = useState('');
-  const [status, setStatus] = useState<'alive' | 'dead'>('alive');
   const [icon, setIcon] = useState('');
   const [tags, setTags] = useState<Record<string, string[]>>({});
-
-  const handleTagChange = (category: string, option: string, checked: boolean) => {
-    setTags(prev => {
-      const existing = prev[category] || [];
-      const updated = checked
-        ? [...existing, option]
-        : existing.filter(tag => tag !== option);
-      return { ...prev, [category]: updated };
-    });
-  };
+  const [appearAt, setAppearAt] = useState<number | ''>('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!name.trim()) {
+      alert("名前を入力してください");
+      return;
+    }
+
     const newChar: Character = {
       id: crypto.randomUUID(),
-      name,
+      name: name.trim(),
       tags,
-      status,
-      icon,
+      icon: icon.trim() || undefined,
+      ...(appearAt !== '' ? { appearAt } : {}), // optionalにする
     };
-    onSubmit(newChar);
 
-    // フォームを初期化
+    onUpdate([...existingCharacters,newChar]);
+
+    // 初期化
     setName('');
-    setStatus('alive');
     setIcon('');
     setTags({});
   };
 
+  const handleMultiTagChange = (categoryName: string, input: string) => {
+    const list = input
+      .split(',')
+      .map(tag => tag.trim())
+      .filter(Boolean);
+    setTags(prev => ({ ...prev, [categoryName]: list }));
+  };
+
+  const handleSingleTagChange = (categoryName: string, input: string) => {
+    const value = input.trim();
+    setTags(prev => ({ ...prev, [categoryName]: value ? [value] : [] }));
+  };
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 border p-4 rounded shadow-md bg-white">
-      <h2 className="text-xl font-semibold">キャラクター追加</h2>
+    <form onSubmit={handleSubmit} className="space-y-4 border p-4 rounded shadow bg-white">
+      <h2 className="text-xl font-bold">キャラクター追加</h2>
 
       <div>
         <label className="block">名前:</label>
-        <input value={name} onChange={e => setName(e.target.value)} className="border p-1 w-full" />
+        <input
+          className="border p-1 w-full"
+          value={name}
+          onChange={e => setName(e.target.value)}
+        />
       </div>
-
-      <div>
-        <label className="block">生死:</label>
-        <select value={status} onChange={e => setStatus(e.target.value as 'alive' | 'dead')} className="border p-1 w-full">
-          <option value="alive">生存</option>
-          <option value="dead">死亡</option>
-        </select>
-      </div>
-
       <div>
         <label className="block">アイコンURL:</label>
-        <input value={icon} onChange={e => setIcon(e.target.value)} className="border p-1 w-full" />
+        <input
+          className="border p-1 w-full"
+          value={icon}
+          onChange={e => setIcon(e.target.value)}
+        />
       </div>
 
-      {tagCategories.map(category => (
-        <div key={category.id} className="mb-2">
-          <p className="font-semibold">{category.name}</p>
+      {/* タグ入力部分 */}
+      <div className="space-y-3">
+        {tagCategories.map(category => (
+          <div key={category.id}>
+          <label className="block font-semibold mb-1">{category.name}</label>
 
           {category.multi ? (
-            // ✅ 複数選択：チェックボックス
-            category.options.map(option => (
-              <label key={option} className="inline-flex items-center mr-4">
-                <input
-                  type="checkbox"
-                  checked={tags[category.name]?.includes(option) || false}
-                  onChange={e => handleTagChange(category.name, option, e.target.checked)}
-                  className="mr-1"
-                />
-                {option}
-              </label>
-            ))
+            // 複数選択（カンマ区切り入力）
+            <input
+              type="text"
+              list={`datalist-${category.id}`}
+              placeholder="カンマ区切りで入力（例: 火遁,雷遁）"
+              value={tags[category.name]?.join(', ') || ''}
+              onChange={e => handleMultiTagChange(category.name, e.target.value)}
+              className="border p-1 w-full"
+            />
           ) : (
-            // ✅ 単一選択：セレクトボックス
+            // 単一選択：セレクトボックスに置き換え！
             <select
               value={tags[category.name]?.[0] || ''}
-              onChange={e => handleTagChange(category.name, e.target.value, true)}
+              onChange={e => handleSingleTagChange(category.name, e.target.value)}
               className="border p-1 w-full"
             >
-              <option value="">-- 選択 --</option>
+              <option value="">-- 選択してください --</option>
               {category.options.map(option => (
                 <option key={option} value={option}>
                   {option}
@@ -93,8 +101,32 @@ export default function CharacterForm({ onSubmit, tagCategories }: {
               ))}
             </select>
           )}
+
+          {/* サジェストは multi: true のときだけ使う */}
+          {category.multi && (
+            <datalist id={`datalist-${category.id}`}>
+              {category.options.map(option => (
+                <option key={option} value={option} />
+              ))}
+            </datalist>
+          )}
         </div>
-      ))}
+        ))}
+      </div>
+      <div>
+        <label className="block">登場タイミング（整数）:</label>
+        <input
+          type="number"
+          className="border p-1 w-full"
+          value={appearAt}
+          onChange={e => {
+            const val = e.target.value;
+            setAppearAt(val === '' ? '' : parseInt(val));
+          }}
+          placeholder="例: 1（1章で登場）"
+        />
+      </div>
+
 
       <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded">
         追加

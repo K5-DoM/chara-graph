@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { TagCategory, Character, Work } from '../types';
+import { TagCategory,Work } from '../types';
 
 export default function WorkForm({ onSubmit }: { onSubmit: (work: Work) => void }) {
   const [title, setTitle] = useState('');
@@ -13,22 +13,28 @@ export default function WorkForm({ onSubmit }: { onSubmit: (work: Work) => void 
 
     const now = new Date().toISOString();
 
+    const deadoraliveCategory: TagCategory = {
+      id: '0',
+      name: "生死",
+      options: ["生存","死亡"],
+      multi:false,
+    }
     const genderCategory: TagCategory = {
-      id: crypto.randomUUID(),
+      id: '1',
       name: "性別",
       options: ["男性", "女性", "その他"],
       multi: false,
     };
+
     const newWork: Work = {
       id: crypto.randomUUID(),
       title,
       characters: [],
-      tagCategories: [genderCategory],
-      
+      tagCategories: [deadoraliveCategory,genderCategory],
       createdAt: now,
       updatedAt: now,
       relations: [],
-      // ✅ 保存されていない状態なので folderPath は含めない
+      // 保存されていない状態なので filePath は含めない
     };
 
     onSubmit(newWork);
