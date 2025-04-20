@@ -48,7 +48,7 @@ export type Work = {
   description?: string;
   characters: Character[];
   relations: Relation[];
-  organizations?: string[];
+  organizations: string[];
   tagCategories: TagCategory[];
   createdAt: string; // ISO形式
   updatedAt: string;

@@ -31,6 +31,7 @@ export default function WorkForm({ onSubmit }: { onSubmit: (work: Work) => void 
       title,
       characters: [],
       tagCategories: [deadoraliveCategory,genderCategory],
+      organizations:[],
       createdAt: now,
       updatedAt: now,
       relations: [],
