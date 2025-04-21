@@ -8,10 +8,17 @@ type Props = {
 };
 
 export default function TagCategoryForm({ existingCharacters,existingtagCategories, onUpdate}: Props) {
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [multi, setMulti] = useState(true);
   const [options, setOptions] = useState<string[]>([]);
   const [optionInput, setOptionInput] = useState('');
+  const handleEditClick = (cat: TagCategory) => {
+    setEditingId(cat.id);
+    setName(cat.name);
+    setMulti(cat.multi);
+    setOptions(cat.options);
+  };
 
   const handleAdd = () => {
     if (!name.trim()) return;
@@ -39,6 +46,51 @@ export default function TagCategoryForm({ existingCharacters,existingtagCategori
     setOptions([]);
     setOptionInput('');
   };
+  const handleUpdate = () => {
+    if (!editingId) return;
+    const trimmed = name.trim();
+    if (!trimmed) return;
+
+    // 1) カテゴリ一覧を更新
+    const newTagCats = existingtagCategories.map(cat =>
+      cat.id === editingId
+        ? { ...cat, name: trimmed, multi, options }
+        : cat
+    );
+
+    // 2) 各キャラの tags キーを（名前が変わったら）マイグレーション
+    const oldCat = existingtagCategories.find(c => c.id === editingId)!;
+    const oldKey = oldCat.name;
+    const newKey = trimmed;
+
+    const newCharacters = existingCharacters.map(char => {
+      const newTags = { ...char.tags };
+      if (oldKey !== newKey && oldKey in newTags) {
+        newTags[newKey] = newTags[oldKey];
+        delete newTags[oldKey];
+      }
+      return { ...char, tags: newTags };
+    });
+
+    // 3) 親コンポーネントにまとめて通知
+    onUpdate(newTagCats, newCharacters);
+
+    // 4) 編集モード解除・フォーム初期化
+    setEditingId(null);
+    setName('');
+    setMulti(true);
+    setOptions([]);
+    setOptionInput('');
+  };
+
+    // ─── ④ 編集キャンセル ───
+    const handleCancel = () => {
+      setEditingId(null);
+      setName('');
+      setMulti(true);
+      setOptions([]);
+      setOptionInput('');
+    };
 
   const handleAddOption = () => {
     const trimmed = optionInput.trim();
@@ -72,9 +124,9 @@ export default function TagCategoryForm({ existingCharacters,existingtagCategori
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-semibold">タグ分類の管理</h2>
+      <h2 className="text-lg font-semibold">{editingId ? 'タグ分類を編集' : 'タグ分類の管理'}</h2>
 
-      {/* 新規追加フォーム */}
+      {/* 新規追加or編集フォーム */}
       <div className="space-y-2 border p-3 rounded bg-white shadow">
         <div className="flex gap-2">
           <input
@@ -103,9 +155,23 @@ export default function TagCategoryForm({ existingCharacters,existingtagCategori
               placeholder="例: 火遁"
               className="border p-1 flex-1"
             />
-            <button type="button" onClick={handleAddOption} className="btn">
-              候補追加
+            <button type="button" onClick={handleAddOption} className="btn">候補追加</button>
+        <div className="flex gap-2">
+          <button
+            onClick={editingId ? handleUpdate : handleAdd}
+            className="btn flex-1"
+          >
+            {editingId ? '更新' : '分類を追加'}
+          </button>
+          {editingId && (
+            <button
+              onClick={handleCancel}
+              className="btn bg-gray-300 text-black"
+            >
+              キャンセル
             </button>
+          )}
+        </div>
           </div>
 
           {/* 現在の候補一覧 */}
@@ -124,8 +190,6 @@ export default function TagCategoryForm({ existingCharacters,existingtagCategori
             ))}
           </ul>
         </div>
-
-        <button onClick={handleAdd} className="btn mt-2 w-full">分類を追加</button>
       </div>
 
       {/* 既存のタグ分類一覧 */}
@@ -135,14 +199,21 @@ export default function TagCategoryForm({ existingCharacters,existingtagCategori
             <div>
               <strong>{cat.name}</strong>（{cat.multi ? '複数' : '単一'}）  
               <span className="text-gray-500 ml-2">候補: {cat.options.join(', ') || 'なし'}</span>
+              <button
+                type="button"
+                className="text-blue-500 text-sm"
+                onClick={() => handleEditClick(cat)}
+              >
+                編集
+              </button>
+              <button
+                type="button"
+                className="text-red-500 text-sm"
+                onClick={() => handleDeleteCategory(cat.id)}
+              >
+                削除
+              </button>
             </div>
-            <button
-              type="button"
-              className="text-red-500 text-sm"
-              onClick={() => handleDeleteCategory(cat.id)}
-            >
-              削除
-            </button>
             {/* RUD は今後追加 */}
           </li>
         ))}
