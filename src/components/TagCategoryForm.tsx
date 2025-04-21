@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import { TagCategory } from '../types';
+import { TagCategory,Character} from '../types';
 
 type Props = {
-  tagCategories: TagCategory[];
-  onUpdate: (updated: TagCategory[]) => void;
+  existingCharacters:Character[]
+  existingtagCategories: TagCategory[];
+  onUpdate: (updatedTagCategories: TagCategory[],updatedCharacters: Character[]) => void;
 };
 
-export default function TagCategoryForm({ tagCategories, onUpdate }: Props) {
+export default function TagCategoryForm({ existingCharacters,existingtagCategories, onUpdate}: Props) {
   const [name, setName] = useState('');
   const [multi, setMulti] = useState(true);
   const [options, setOptions] = useState<string[]>([]);
@@ -21,9 +22,17 @@ export default function TagCategoryForm({ tagCategories, onUpdate }: Props) {
       options,
       multi,
     };
-
-    onUpdate([...tagCategories, newCategory]);
-
+    const updatedCharacters = existingCharacters.map(char => {
+      if (char.tags.hasOwnProperty(newCategory.name)) return char;
+      return {
+        ...char,
+        tags: {
+          ...char.tags,
+          [newCategory.name]: [],
+        },
+      };
+    });
+    onUpdate([...existingtagCategories, newCategory],updatedCharacters);
     // 初期化
     setName('');
     setMulti(true);
@@ -103,7 +112,7 @@ export default function TagCategoryForm({ tagCategories, onUpdate }: Props) {
 
       {/* 既存のタグ分類一覧 */}
       <ul className="space-y-1 text-sm">
-        {tagCategories.map(cat => (
+        {existingtagCategories.map(cat => (
           <li key={cat.id} className="flex justify-between items-center border p-2 rounded bg-white">
             <div>
               <strong>{cat.name}</strong>（{cat.multi ? '複数' : '単一'}）  

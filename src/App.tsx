@@ -38,7 +38,19 @@ function App() {
       updatedAt: new Date().toISOString(),
     });
   };
-
+   // タグカテゴリ＋キャラクターを一度に更新するハンドラ
+  const handleUpdateTagCategoryAndCharacters = (
+    updatedTagCategories: TagCategory[],
+    updatedCharacters: Character[]
+  ) => {
+    if (!currentWork) return;
+    setCurrentWork({
+      ...currentWork,
+      tagCategories: updatedTagCategories,
+      characters: updatedCharacters,
+      updatedAt: new Date().toISOString(),
+    });
+  };
   return (
     <div className="h-screen flex flex-col bg-gray-50 font-sans">
       {/* 上部メニューボタンバー */}
@@ -81,8 +93,9 @@ function App() {
           )}
           {mode === 'add-tagcat' && currentWork && (
             <TagCategoryForm
-              tagCategories={currentWork.tagCategories}
-              onUpdate={handleUpdateTagCategories}
+              existingCharacters={currentWork.characters}
+              existingtagCategories={currentWork.tagCategories}
+              onUpdate={handleUpdateTagCategoryAndCharacters}
             />
           )}
           {mode === 'none' && (

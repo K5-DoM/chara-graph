@@ -36,17 +36,17 @@ export default function CharacterForm({ tagCategories, existingCharacters,onUpda
     setTags({});
   };
 
-  const handleMultiTagChange = (categoryName: string, input: string) => {
+  const handleMultiTagChange = (categoryId: string, input: string) => {
     const list = input
       .split(',')
       .map(tag => tag.trim())
       .filter(Boolean);
-    setTags(prev => ({ ...prev, [categoryName]: list }));
+    setTags(prev => ({ ...prev, [categoryId]: list }));
   };
 
-  const handleSingleTagChange = (categoryName: string, input: string) => {
+  const handleSingleTagChange = (categoryId: string, input: string) => {
     const value = input.trim();
-    setTags(prev => ({ ...prev, [categoryName]: value ? [value] : [] }));
+    setTags(prev => ({ ...prev, [categoryId]: value ? [value] : [] }));
   };
 
   return (
@@ -83,14 +83,14 @@ export default function CharacterForm({ tagCategories, existingCharacters,onUpda
               list={`datalist-${category.id}`}
               placeholder="カンマ区切りで入力（例: 火遁,雷遁）"
               value={tags[category.name]?.join(', ') || ''}
-              onChange={e => handleMultiTagChange(category.name, e.target.value)}
+              onChange={e => handleMultiTagChange(category.id, e.target.value)}
               className="border p-1 w-full"
             />
           ) : (
             // 単一選択：セレクトボックスに置き換え！
             <select
               value={tags[category.name]?.[0] || ''}
-              onChange={e => handleSingleTagChange(category.name, e.target.value)}
+              onChange={e => handleSingleTagChange(category.id, e.target.value)}
               className="border p-1 w-full"
             >
               <option value="">-- 選択してください --</option>

@@ -1,13 +1,20 @@
+// types.tsx
+export type Organization = {
+  id: string;
+  name: string;
+  parentId?: string;
+};
+
 export type TagCategory = {
   id: string;
-  name: string; // 例: 性格, 能力
-  options: string[]; // 例: ["元気", "クール"]
-  multi:boolean;
+  name: string;       // 例: 性格, 能力
+  options: string[];  // 例: ["元気", "クール"]
+  multi: boolean;
 };
 
 export type TagChange = {
   time: number;
-  category: string;
+  categoryId: string;
   tag: string;
   type: 'add' | 'remove';
 };
@@ -18,37 +25,36 @@ export type RelationEvent = {
   label: string;
 };
 
-// キャラクター
 export type Character = {
   id: string;
   name: string;
-  description?:string;
-  tags: {
-    [category: string]: string[]; // 例: { 性格: ["元気"], 性別: ["女性"] }
-  };
+  description?: string;
+  // カテゴリIDをキーにしたマッピングに変更
+  tags: { [categoryId: string]: string[] };
   tagTimeline?: TagChange[];
   appearAt?: number;
-  icon?: string; // アイコンURL or Base64
+  icon?: string;
+  // 所属組織を扱いたい場合
+  organizationIds?: string[];
 };
 
-// キャラクター関係性（ID参照）
 export type Relation = {
   id: string;
   sourceId: string; // Character.id
   targetId: string; // Character.id
-  label: string;    // 例:「兄弟」「敵対」など
+  label: string;    // 例:「兄弟」「敵対」
   timeline?: RelationEvent[];
 };
 
-// 作品
 export type Work = {
   id: string;
   title: string;
-  nowfilePath?: string
+  nowfilePath?: string;
   description?: string;
   characters: Character[];
   relations: Relation[];
-  organizations: string[];
+  // Organization 型の配列として管理
+  organizations: Organization[];
   tagCategories: TagCategory[];
   createdAt: string; // ISO形式
   updatedAt: string;
