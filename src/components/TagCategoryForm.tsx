@@ -52,6 +52,24 @@ export default function TagCategoryForm({ existingCharacters,existingtagCategori
     setOptions(options.filter(opt => opt !== optionToDelete));
   };
 
+  function handleDeleteCategory(categoryId: string) {
+    // 1) カテゴリ配列から削除
+    const afterdeleteTagCats = existingtagCategories.filter(c => c.id !== categoryId);
+  
+    // 2) 各キャラクターの tags から該当キーを除去
+    const afterdeleteCharacters = existingCharacters.map(char => {
+      const {[categoryId]: _, ...rest} = char.tags;
+      return {
+        ...char,
+        tags: rest,
+      };
+    });
+  
+    // 3) 親コンポーネントにまとめて通知
+    onUpdate(afterdeleteTagCats, afterdeleteCharacters);
+  }
+  
+
   return (
     <div className="space-y-4">
       <h2 className="text-lg font-semibold">タグ分類の管理</h2>
@@ -118,6 +136,13 @@ export default function TagCategoryForm({ existingCharacters,existingtagCategori
               <strong>{cat.name}</strong>（{cat.multi ? '複数' : '単一'}）  
               <span className="text-gray-500 ml-2">候補: {cat.options.join(', ') || 'なし'}</span>
             </div>
+            <button
+              type="button"
+              className="text-red-500 text-sm"
+              onClick={() => handleDeleteCategory(cat.id)}
+            >
+              削除
+            </button>
             {/* RUD は今後追加 */}
           </li>
         ))}

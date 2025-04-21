@@ -29,7 +29,7 @@ function App() {
       updatedAt: new Date().toISOString(),
     });
   };
-
+/* 
   const handleUpdateTagCategories = (updated: TagCategory[]) => {
     if (!currentWork) return;
     setCurrentWork({
@@ -38,18 +38,19 @@ function App() {
       updatedAt: new Date().toISOString(),
     });
   };
+*/
    // タグカテゴリ＋キャラクターを一度に更新するハンドラ
-  const handleUpdateTagCategoryAndCharacters = (
+   const handleUpdateTagCategoriesAndCharacters = (
     updatedTagCategories: TagCategory[],
     updatedCharacters: Character[]
   ) => {
     if (!currentWork) return;
-    setCurrentWork({
-      ...currentWork,
+    setCurrentWork(prev => ({
+      ...prev!,
       tagCategories: updatedTagCategories,
       characters: updatedCharacters,
       updatedAt: new Date().toISOString(),
-    });
+    }));
   };
   return (
     <div className="h-screen flex flex-col bg-gray-50 font-sans">
@@ -95,7 +96,7 @@ function App() {
             <TagCategoryForm
               existingCharacters={currentWork.characters}
               existingtagCategories={currentWork.tagCategories}
-              onUpdate={handleUpdateTagCategoryAndCharacters}
+              onUpdate={handleUpdateTagCategoriesAndCharacters}
             />
           )}
           {mode === 'none' && (
