@@ -89,7 +89,7 @@ export default function CharacterForm({ tagCategories, existingCharacters,onUpda
           ) : (
             // 単一選択：セレクトボックスに置き換え！
             <select
-              value={tags[category.name]?.[0] || ''}
+              value={tags[category.id]?.[0] || ''}
               onChange={e => handleSingleTagChange(category.id, e.target.value)}
               className="border p-1 w-full"
             >
