@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { TagCategory,Character} from '../types';
+import { confirm } from '@tauri-apps/plugin-dialog'
 
 type Props = {
   existingCharacters:Character[]
@@ -120,6 +121,12 @@ export default function TagCategoryForm({ existingCharacters,existingtagCategori
     // 3) 親コンポーネントにまとめて通知
     onUpdate(afterdeleteTagCats, afterdeleteCharacters);
   }
+
+  async function handleDeleteClick(tagCat:TagCategory) {
+    const confirmed = await confirm(
+      `${tagCat.name} を削除すると、全てのキャラからそのタグが消えます。\nよろしいですか？`);
+    if (confirmed) { handleDeleteCategory(tagCat.id)}
+  }
   
 
   return (
@@ -209,7 +216,7 @@ export default function TagCategoryForm({ existingCharacters,existingtagCategori
               <button
                 type="button"
                 className="text-red-500 text-sm"
-                onClick={() => handleDeleteCategory(cat.id)}
+                onClick={() => handleDeleteClick(cat)}
               >
                 削除
               </button>

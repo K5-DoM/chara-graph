@@ -39,8 +39,21 @@ function App() {
     });
   };
 */
+  const handleDeleteCharacterAndRelations = (charId: string) => {
+    setCurrentWork(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        characters: prev.characters.filter(c => c.id !== charId),
+        relations: prev.relations.filter(
+          r => r.sourceId !== charId && r.targetId !== charId
+        ),
+        updatedAt: new Date().toISOString(),
+      };
+    });
+};
    // タグカテゴリ＋キャラクターを一度に更新するハンドラ
-   const handleUpdateTagCategoriesAndCharacters = (
+  const handleUpdateTagCategoriesAndCharacters = (
     updatedTagCategories: TagCategory[],
     updatedCharacters: Character[]
   ) => {
@@ -83,12 +96,13 @@ function App() {
               tagCategories={currentWork.tagCategories}
               existingCharacters={currentWork.characters}
               onUpdate={handleUpdateCharacters}
+              onDelete={handleDeleteCharacterAndRelations}
             />
           )}
           {mode === 'add-relation' && currentWork && (
             <RelationForm
               characters={currentWork.characters}
-              existingrelations={currentWork.relations}
+              existingRelations={currentWork.relations}
               onUpdate={handleUpdateRelations}
             />
           )}
