@@ -2,7 +2,7 @@
 import { useEffect, useRef } from 'react';
 import * as d3 from 'd3';
 import * as cola from 'webcola';
-import { Work, RelationEvent } from '../types';
+import { Work} from '../types';
 
 /* ───────── 型定義 ───────── */
 interface NodeDatum extends cola.Node {
@@ -16,7 +16,8 @@ interface NodeDatum extends cola.Node {
 interface LinkDatum extends cola.Link<NodeDatum> {
   id: string;
   label: string;
-  timeline?: RelationEvent[];
+    appearAt: number;
+  disappearAt?: number;
 }
 
 /* ───────── Utility ───────── */
@@ -54,27 +55,20 @@ function filterByTime(work: Work, t: number) {
   const links: LinkDatum[] = (work.relations ?? [])
     .filter((r) => id2node.has(r.sourceId) && id2node.has(r.targetId))
     .filter((r) => {
-      if (!r.timeline) return true;
-      const created =
-        r.timeline.find((ev) => ev.type === 'create')?.time ?? 0;
-      const removed =
-        r.timeline.find((ev) => ev.type === 'remove')?.time ?? Infinity;
+      const created =r.appearAt ?? 0;
+      const removed =r.disappearAt ?? Infinity;
       return created <= t && t < removed;
     })
     .map(
       (r): LinkDatum => {
         // 最新 update ラベル
         let lbl = r.label;
-        if (r.timeline) {
-          const latestUpd = r.timeline
-            .filter((ev) => ev.type === 'update' && ev.time <= t)
-            .sort((a, b) => b.time - a.time)[0];
-          if (latestUpd) lbl = latestUpd.label;
-        }
         return {
           id: r.id,
           source: id2node.get(r.sourceId)!,
           target: id2node.get(r.targetId)!,
+          appearAt: r.appearAt,
+          disappearAt: r.disappearAt,
           label: lbl,
         };
       }
@@ -138,6 +132,23 @@ export default function GraphView({
           exit.transition().attr('stroke-opacity', 0).remove()
       );
 
+      /* ★ Link ラベル（線と同じ key で join） */
+      const linkLabelSel = g
+        .selectAll<SVGTextElement, LinkDatum>('text.link-label')
+        .data(links, d => d.id)
+        .join(
+          enter =>
+            enter.append('text')
+              .attr('class', 'link-label')
+              .attr('font-size', 10)
+              .attr('fill', '#555')
+              .attr('text-anchor', 'middle')
+              .attr('dy', -4)          // 線より少し上
+              .text(d => d.label),
+          update => update.text(d => d.label),
+          exit => exit.remove()
+        );
+
     // --- Nodes ---
     const nodeSel = g
       .selectAll<SVGGElement, NodeDatum>('g.node')
@@ -154,10 +165,11 @@ export default function GraphView({
             .attr('fill', '#4f46e5');
 
           ng.append('text')
-            .attr('x', NODE_RADIUS + 4)
-            .attr('y', 4)
+            .attr('x', 0)
+            .attr('y', NODE_RADIUS+12)
+            .attr('text-anchor','middle')
             .attr('font-size', 10)
-            .text((d) => d.label);
+            .text(d => d.label);
 
           return ng.transition().style('opacity', 1);
         },
@@ -186,7 +198,19 @@ export default function GraphView({
         .attr('y1', (d) => (d.source as NodeDatum).y ?? 0)
         .attr('x2', (d) => (d.target as NodeDatum).x ?? 0)
         .attr('y2', (d) => (d.target as NodeDatum).y ?? 0);
-    });
+
+      linkLabelSel
+        .attr('x', d => {
+          const s = d.source as NodeDatum;
+          const t = d.target as NodeDatum;
+          return (s.x! + t.x!) / 2;
+        })
+        .attr('y', d => {
+          const s = d.source as NodeDatum;
+          const t = d.target as NodeDatum;
+          return (s.y! + t.y!) / 2;
+        });
+      });
 
     /* 6️⃣ クリーンアップ */
     return () => {

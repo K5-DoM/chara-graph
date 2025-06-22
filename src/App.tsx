@@ -95,6 +95,11 @@ function App() {
 
       {/* 二画面レイアウト */}
       <div className="flex flex-1 overflow-hidden">
+        {currentWork &&
+        <h2 className="text-xl font-bold">
+          {currentWork.title}
+        </h2>
+        }
         {/* 左側：フォーム切り替え */}
         <div className="w-1/2 p-4 overflow-auto border-r bg-white">
           {mode === 'new-work' && (

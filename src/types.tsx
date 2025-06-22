@@ -19,12 +19,6 @@ export type TagChange = {
   type: 'add' | 'remove';
 };
 
-export type RelationEvent = {
-  time: number;
-  type: 'create' | 'update' | 'remove';
-  label: string;
-};
-
 export type Character = {
   id: string;
   name: string;
@@ -44,7 +38,8 @@ export type Relation = {
   sourceId: string; // Character.id
   targetId: string; // Character.id
   label: string;    // 例:「兄弟」「敵対」
-  timeline?: RelationEvent[];
+  appearAt:number;
+  disappearAt?:number;
 };
 
 export type Work = {

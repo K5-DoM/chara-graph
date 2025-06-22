@@ -11,9 +11,9 @@ export function ensureMaxTime(work: Work): Work {
   });
   // リレーション timeline
   work.relations.forEach(r => {
-    r.timeline?.forEach(ev => {
-      maxT = Math.max(maxT, ev.time);
-    });
+    if (r.appearAt !== undefined)   maxT = Math.max(maxT, r.appearAt);
+    if (r.disappearAt !== undefined) maxT = Math.max(maxT, r.disappearAt);
+
   });
 
   return maxT === work.maxTime ? work : { ...work, maxTime: maxT };
