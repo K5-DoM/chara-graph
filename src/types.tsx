@@ -33,6 +33,7 @@ export type Character = {
   tags: { [categoryId: string]: string[] };
   tagTimeline?: TagChange[];
   appearAt?: number;
+  disappearAt?:number;
   icon?: string;
   // 所属組織を扱いたい場合
   organizationIds?: string[];
@@ -56,6 +57,7 @@ export type Work = {
   // Organization 型の配列として管理
   organizations: Organization[];
   tagCategories: TagCategory[];
+  maxTime: number;
   createdAt: string; // ISO形式
   updatedAt: string;
 };

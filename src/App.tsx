@@ -5,29 +5,36 @@ import WorkForm from './components/WorkForm';
 import RelationForm from './components/RelationForm';
 import TagCategoryForm from './components/TagCategoryForm';
 import { Work, Character, Relation,TagCategory} from './types';
+import GraphView from './components/Graph';
+import { ensureMaxTime } from './lib/workHelpers';
 
-type Mode = 'none' | 'new-work' | 'add-character' | 'add-relation'|'add-tagcat';
+type Mode = 'none' | 'new-work' | 'add-character' | 'add-relation'|'add-tagcat'|'graph';
 
 function App() {
   const [currentWork, setCurrentWork] = useState<Work | null>(null);
   const [mode, setMode] = useState<Mode>('none');
+  const [time,setTime] = useState(0)
 
   const handleUpdateCharacters = (updated: Character[]) => {
     if (!currentWork) return;
-    setCurrentWork({
+    let newWork = {
       ...currentWork,
       characters: updated,
       updatedAt: new Date().toISOString(),
-    });
+    }
+    newWork = ensureMaxTime(newWork);
+    setCurrentWork(newWork);
   };
   
   const handleUpdateRelations = (updated: Relation[]) => {
     if (!currentWork) return;
-    setCurrentWork({
+    let newWork = {
       ...currentWork,
       relations: updated,
       updatedAt: new Date().toISOString(),
-    });
+    }
+    newWork = ensureMaxTime(newWork)
+    setCurrentWork(newWork);
   };
 /* 
   const handleUpdateTagCategories = (updated: TagCategory[]) => {
@@ -66,6 +73,7 @@ function App() {
     }));
   };
   return (
+    <>
     <div className="h-screen flex flex-col bg-gray-50 font-sans">
       {/* 上部メニューボタンバー */}
       <div className="bg-gray-200 p-2 flex gap-2">
@@ -82,6 +90,7 @@ function App() {
         <button onClick={() => setMode('add-character')} className="btn" disabled={!currentWork}>キャラ</button>
         <button onClick={() => setMode('add-relation')} className="btn" disabled={!currentWork}>関係性</button>
         <button onClick={() => setMode('add-tagcat')} className="btn" disabled={!currentWork}>タグカテゴリ</button>
+        <button  onClick={() => setMode('graph')}  className="btn"  disabled={!currentWork}>  相関図</button>
       </div>
 
       {/* 二画面レイアウト */}
@@ -113,9 +122,20 @@ function App() {
               onUpdate={handleUpdateTagCategoriesAndCharacters}
             />
           )}
-          {mode === 'none' && (
-            <p className="text-gray-500">左のメニューから操作を選んでください。</p>
+          {mode === 'graph' && currentWork && (
+            <>
+              <input
+                type="range"
+                min={0}
+                max={currentWork.maxTime}
+                value={time}
+                onChange={e => setTime(+e.target.value)}
+                className="w-full"
+              />
+              <GraphView work={currentWork} time={time} width={600} height={500}/>
+            </>
           )}
+          </div>
         </div>
 
         {/* 右側：JSON（または将来的にグラフ） */}
@@ -129,7 +149,7 @@ function App() {
           )}
         </div>
       </div>
-    </div>
+    </>
   );
 }
 

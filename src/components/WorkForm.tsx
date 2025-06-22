@@ -35,6 +35,7 @@ export default function WorkForm({ onSubmit }: { onSubmit: (work: Work) => void 
       createdAt: now,
       updatedAt: now,
       relations: [],
+      maxTime:3
       // 保存されていない状態なので filePath は含めない
     };
 

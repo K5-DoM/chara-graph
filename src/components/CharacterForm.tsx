@@ -1,109 +1,140 @@
 import { useState } from 'react';
 import { Character, TagCategory } from '../types';
-import { confirm } from '@tauri-apps/plugin-dialog'
+import { confirm } from '@tauri-apps/plugin-dialog';
 
 type Props = {
   tagCategories: TagCategory[];
-  existingCharacters: Character[]; // 現在のキャラ一覧を受け取る
+  existingCharacters: Character[];
   onUpdate: (updated: Character[]) => void;
   onDelete: (charId: string) => void;
 };
 
-export default function CharacterForm({ tagCategories, existingCharacters,onUpdate,onDelete}: Props) {
+/* ─── タグ初期化ヘルパー ─── */
+function makeInitialTags(
+  tagCategories: TagCategory[]
+): Record<string, string[]> {
+  const t: Record<string, string[]> = {};
+  tagCategories.forEach((cat) => {
+    t[cat.id] = cat.multi ? [] : [cat.options[0] || ''];
+  });
+  return t;
+}
+
+export default function CharacterForm({
+  tagCategories,
+  existingCharacters,
+  onUpdate,
+  onDelete,
+}: Props) {
+  /* ─── state ─── */
   const [editingId, setEditingId] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [icon, setIcon] = useState('');
-  const [tags, setTags] = useState<Record<string, string[]>>( 
-    ()=> makeInitialTags(tagCategories)
+  const [tags, setTags] = useState<Record<string, string[]>>(
+    () => makeInitialTags(tagCategories)
   );
   const [appearAt, setAppearAt] = useState<number | ''>('');
+  const [disappearAt, setDisappearAt] = useState<number | ''>('');
+
+  /* ─── reset ─── */
   const resetForm = () => {
     setEditingId(null);
     setName('');
     setIcon('');
     setTags(makeInitialTags(tagCategories));
     setAppearAt('');
+    setDisappearAt('');
   };
+
+  /* ─── 登録／更新 共通バリデーション ─── */
+  const basicCheck = (): boolean => {
+    if (!name.trim()) {
+      alert('名前を入力してください');
+      return false;
+    }
+    if (appearAt === '') {
+      alert('登場タイミングを入力してください');
+      return false;
+    }
+    if (
+      disappearAt !== '' &&
+      Number(disappearAt) <= Number(appearAt)
+    ) {
+      alert('消失タイミングは登場より後にしてください');
+      return false;
+    }
+    return true;
+  };
+
+  /* ─── 追加 ─── */
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) {
-      alert("名前を入力してください");
-      return;
-    }
+    if (!basicCheck()) return;
 
     const newChar: Character = {
       id: crypto.randomUUID(),
       name: name.trim(),
       tags,
       icon: icon.trim() || undefined,
-      ...(appearAt !== '' ? { appearAt } : {}), // optionalにする
+      appearAt: Number(appearAt),
+      ...(disappearAt !== '' ? { disappearAt: Number(disappearAt) } : {}),
     };
 
-    onUpdate([...existingCharacters,newChar]);
-
+    onUpdate([...existingCharacters, newChar]);
     resetForm();
   };
+
+  /* ─── 更新 ─── */
   const handleUpdate = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingId || !name.trim()) return;
+    if (!editingId || !basicCheck()) return;
 
     const updatedChar: Character = {
       id: editingId,
       name: name.trim(),
       icon: icon.trim() || undefined,
       tags,
-      ...(appearAt !== '' ? { appearAt } : {}),
+      appearAt: Number(appearAt),
+      ...(disappearAt !== '' ? { disappearAt: Number(disappearAt) } : {}),
     };
 
-    const newList = existingCharacters.map(c =>
+    const newList = existingCharacters.map((c) =>
       c.id === editingId ? updatedChar : c
     );
     onUpdate(newList);
     resetForm();
   };
 
-
-  const handleMultiTagChange = (categoryId: string, input: string) => {
-    const list = input
-      .split(',')
-      .map(tag => tag.trim())
-      .filter(Boolean);
-    setTags(prev => ({ ...prev, [categoryId]: list }));
+  /* ─── タグ入力ハンドラ ─── */
+  const handleMultiTagChange = (catId: string, value: string) => {
+    const arr = value.split(',').map((t) => t.trim()).filter(Boolean);
+    setTags((p) => ({ ...p, [catId]: arr }));
+  };
+  const handleSingleTagChange = (catId: string, value: string) => {
+    setTags((p) => ({ ...p, [catId]: value ? [value] : [] }));
   };
 
-  const handleSingleTagChange = (categoryId: string, input: string) => {
-    const value = input.trim();
-    setTags(prev => ({ ...prev, [categoryId]: value ? [value] : [] }));
-  };
-
-  const handleEditClick = (char: Character)=>{
+  /* ─── 編集／削除 ─── */
+  const handleEditClick = (char: Character) => {
     setEditingId(char.id);
     setName(char.name);
     setIcon(char.icon ?? '');
     const merged = makeInitialTags(tagCategories);
-    Object.entries(char.tags).forEach(([catId,vals])=>{
-      merged[catId]=vals;
-    })
+    Object.entries(char.tags).forEach(([id, vals]) => (merged[id] = vals));
+    setTags(merged);
     setAppearAt(char.appearAt ?? '');
-  }
-  function makeInitialTags(tagCategories: TagCategory[]): Record<string,string[]> {
-    const t: Record<string,string[]> = {};
-    tagCategories.forEach(cat => {
-      // 単一選択なら初期値に options[0]、複数選択なら空配列
-      t[cat.id] = cat.multi ? [] : [cat.options[0] || ''];
-    });
-    return t;
-  }
+    setDisappearAt(char.disappearAt ?? '');
+  };
+
   async function handleDeleteClick(char: Character) {
-    const confirmed = await confirm(
-      `${char.name} を削除すると、関連する関係性もすべて消えます。\nよろしいですか？`,
-      { title: 'キャラクター削除の確認' }
+    const ok = await confirm(
+      `${char.name} を削除すると関連する関係性も消えます。続行しますか？`,
+      { title: 'キャラクター削除' }
     );
-    if (confirmed) {
-      onDelete(char.id);
-    }
+    if (ok) onDelete(char.id);
   }
 
+  /* ─── UI ─── */
   return (
     <form
       onSubmit={editingId ? handleUpdate : handleAdd}
@@ -113,132 +144,147 @@ export default function CharacterForm({ tagCategories, existingCharacters,onUpda
         {editingId ? 'キャラクター編集' : 'キャラクター追加'}
       </h2>
 
-      {/* 名前 */}
+      {/* 名前 / アイコン */}
       <div>
         <label className="block">名前:</label>
         <input
           className="border p-1 w-full"
           value={name}
-          onChange={e => setName(e.target.value)}
+          onChange={(e) => setName(e.target.value)}
         />
       </div>
-
-      {/* アイコンURL */}
       <div>
         <label className="block">アイコンURL:</label>
         <input
           className="border p-1 w-full"
           value={icon}
-          onChange={e => setIcon(e.target.value)}
+          onChange={(e) => setIcon(e.target.value)}
         />
       </div>
 
       {/* タグ入力 */}
       <div className="space-y-3">
-        {tagCategories.map(cat => (
+        {tagCategories.map((cat) => (
           <div key={cat.id}>
             <label className="block font-semibold mb-1">{cat.name}</label>
             {cat.multi ? (
-              <input
-                type="text"
-                list={`datalist-${cat.id}`}
-                placeholder="カンマ区切りで入力"
-                value={tags[cat.id]?.join(', ') || ''}
-                onChange={e =>
-                  handleMultiTagChange(cat.id, e.target.value)
-                }
-                className="border p-1 w-full"
-              />
+              <>
+                <input
+                  type="text"
+                  list={`datalist-${cat.id}`}
+                  placeholder="カンマ区切りで入力"
+                  value={tags[cat.id]?.join(', ') || ''}
+                  onChange={(e) =>
+                    handleMultiTagChange(cat.id, e.target.value)
+                  }
+                  className="border p-1 w-full"
+                />
+                <datalist id={`datalist-${cat.id}`}>
+                  {cat.options.map((o) => (
+                    <option key={o} value={o} />
+                  ))}
+                </datalist>
+              </>
             ) : (
               <select
+                className="border p-1 w-full"
                 value={tags[cat.id]?.[0] || ''}
-                onChange={e =>
+                onChange={(e) =>
                   handleSingleTagChange(cat.id, e.target.value)
                 }
-                className="border p-1 w-full"
               >
-                {cat.options.map(opt => (
-                  <option key={opt} value={opt}>
-                    {opt}
+                {cat.options.map((o) => (
+                  <option key={o} value={o}>
+                    {o}
                   </option>
                 ))}
               </select>
-            )}
-            {cat.multi && (
-              <datalist id={`datalist-${cat.id}`}>
-                {cat.options.map(opt => (
-                  <option key={opt} value={opt} />
-                ))}
-              </datalist>
             )}
           </div>
         ))}
       </div>
 
-      {/* 登場タイミング */}
-      <div>
-        <label className="block">登場タイミング（整数）:</label>
-        <input
-          type="number"
-          className="border p-1 w-full"
-          value={appearAt}
-          onChange={e => {
-            const v = e.target.value;
-            setAppearAt(v === '' ? '' : parseInt(v, 10));
-          }}
-          placeholder="例: 1（1章で登場）"
-        />
+      {/* 出現／消失タイミング */}
+      <div className="flex gap-2">
+        <div className="flex-1">
+          <label className="block">登場タイミング:</label>
+          <input
+            type="number"
+            className="border p-1 w-full"
+            value={appearAt}
+            onChange={(e) =>
+              setAppearAt(e.target.value === '' ? '' : Number(e.target.value))
+            }
+            placeholder="例: 1"
+          />
+        </div>
+        <div className="flex-1">
+          <label className="block">消失タイミング(任意):</label>
+          <input
+            type="number"
+            className="border p-1 w-full"
+            value={disappearAt}
+            onChange={(e) =>
+              setDisappearAt(
+                e.target.value === '' ? '' : Number(e.target.value)
+              )
+            }
+            placeholder="例: 10"
+          />
+        </div>
       </div>
 
-      {/* 追加／更新／キャンセルボタン */}
+      {/* ボタン */}
       <div className="flex gap-2">
-        <button
-          type="submit"
-          className="bg-blue-600 text-white px-4 py-2 rounded flex-1"
-        >
+        <button className="btn bg-blue-600 text-white flex-1" type="submit">
           {editingId ? '更新' : '追加'}
         </button>
         {editingId && (
-          <button
-            type="button"
-            onClick={resetForm}
-            className="bg-gray-300 text-black px-4 py-2 rounded"
-          >
+          <button className="btn bg-gray-300" type="button" onClick={resetForm}>
             キャンセル
           </button>
         )}
       </div>
 
-      {/* 既存キャラクター一覧（編集・削除） */}
+      {/* 一覧 */}
       <div className="border-t pt-4">
-        <h3 className="text-lg font-semibold mb-2">
-          既存のキャラクター
-        </h3>
+        <h3 className="text-lg font-semibold mb-2">既存キャラクター</h3>
         <ul className="space-y-2">
-          {existingCharacters.map(char => (
-            <li
-              key={char.id}
-              className="flex justify-between items-center bg-gray-50 p-2 rounded"
-            >
-              <span>{char.name}</span>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  className="text-blue-500 text-sm"
-                  onClick={() => handleEditClick(char)}
-                >
-                  編集
-                </button>
-                <button
-                  type="button"
-                  className="text-red-500 text-sm"
-                  onClick={() => handleDeleteClick(char)}
+          {existingCharacters.map((c) => {
+            const ended = c.disappearAt !== undefined;
+            return (
+              <li
+                key={c.id}
+                className={`flex justify-between items-center p-2 rounded ${
+                  ended ? 'bg-gray-200 text-gray-500' : 'bg-gray-50'
+                }`}
+              >
+                <span>
+                  {c.name}{' '}
+                  <span className="text-xs text-gray-400">
+                    ({c.appearAt}〜{c.disappearAt ?? '…'})
+                  </span>
+                </span>
+                <div className="flex gap-2">
+                  <button
+                    className="text-blue-500 text-sm"
+                    onClick={() => handleEditClick(c)}
                   >
-                  削除
-                </button>
-              </div>
-            </li>
-          ))}
+                    編集
+                  </button>
+                  <button
+                    className="text-red-500 text-sm"
+                    onClick={() => handleDeleteClick(c)}
+                  >
+                    削除
+                  </button>
+                </div>
+              </li>
+            );
+          })}
+          {existingCharacters.length === 0 && (
+            <li className="text-gray-400">キャラクターがいません</li>
+          )}
         </ul>
       </div>
     </form>
