@@ -266,13 +266,13 @@ export default function CharacterForm({
                   </span>
                 </span>
                 <div className="flex gap-2">
-                  <button
+                  <button type='button'
                     className="text-blue-500 text-sm"
                     onClick={() => handleEditClick(c)}
                   >
                     編集
                   </button>
-                  <button
+                  <button type='button'
                     className="text-red-500 text-sm"
                     onClick={() => handleDeleteClick(c)}
                   >

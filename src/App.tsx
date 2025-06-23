@@ -7,6 +7,7 @@ import TagCategoryForm from './components/TagCategoryForm';
 import { Work, Character, Relation,TagCategory} from './types';
 import GraphView from './components/Graph';
 import { ensureMaxTime } from './lib/workHelpers';
+// import {ensureUniqueCharacters,ensureUniqueRelations,ensureUniqueTagCategories} from './lib/workHelpers';
 
 type Mode = 'none' | 'new-work' | 'add-character' | 'add-relation'|'add-tagcat'|'graph';
 
@@ -83,6 +84,9 @@ function App() {
         <button onClick={async () => {
           const loaded = await loadWork();
           if (loaded) {
+            // loaded.characters = ensureUniqueCharacters(loaded.characters);
+            // loaded.relations = ensureUniqueRelations(loaded.relations);
+            // loaded.tagCategories = ensureUniqueTagCategories(loaded.tagCategories)
             setCurrentWork(loaded);
             setMode('none');
           }
