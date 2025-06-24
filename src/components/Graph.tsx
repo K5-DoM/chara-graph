@@ -22,8 +22,32 @@ interface LinkDatum extends cola.Link<NodeDatum> {
 
 /* ───────── Utility ───────── */
 const NODE_RADIUS = 10;
+const LABEL_OFFSET = 14;    
 const NODE_WIDTH = NODE_RADIUS * 2;
 const NODE_HEIGHT = NODE_RADIUS * 2;
+
+export function markOppositePairs(links: LinkDatum[], k = 0.25) {
+  const bucket = new Map<string, { a2b?: LinkDatum; b2a?: LinkDatum }>();
+
+  links.forEach(l => {
+    const [a, b] = [l.source.id as string, l.target.id as string];
+    const key = [a, b].sort().join('|');
+
+    const box = bucket.get(key) ?? {};
+    if (a < b) box.a2b = l; else box.b2a = l;
+    bucket.set(key, box);
+  });
+
+  bucket.forEach(({ a2b, b2a }) => {
+    if (a2b && b2a) {
+      (a2b as any).curvature = k;   // **符号を付けない**
+      (b2a as any).curvature = k;
+    } else {
+      (a2b ?? b2a as any).curvature = 0;   // 片方向だけ
+    }
+  });
+}
+
 
 /** 時刻 t で有効な nodes / links を取得  */
 function filterByTime(work: Work, t: number) {
@@ -77,6 +101,32 @@ function filterByTime(work: Work, t: number) {
   return { nodes, links };
 }
 
+function arcPath(d: LinkDatum & { curvature?: number }) {
+  const s = d.source as NodeDatum;
+  const t = d.target as NodeDatum;
+  const k = Math.abs(d.curvature ?? 0);       // ★ 正値にする
+
+  if (k === 0) return `M${s.x},${s.y} L${t.x},${t.y}`;
+
+  const dx = t.x! - s.x!;
+  const dy = t.y! - s.y!;
+  const dist = Math.hypot(dx, dy) || 1;
+
+  // 単位法線ベクトル N = (-dy, dx)/dist
+  const nx = -dy / dist;
+  const ny =  dx / dist;
+
+  // 向きが逆なら N も逆向きになるので、ここでは |k| だけ掛ける
+  const mx = (s.x! + t.x!) / 2;
+  const my = (s.y! + t.y!) / 2;
+  const cx = mx + nx * dist * k;
+  const cy = my + ny * dist * k;
+
+  return `M${s.x},${s.y} Q${cx},${cy} ${t.x},${t.y}`;
+}
+
+
+
 /* ─────────  Props  ───────── */
 type Props = {
   work: Work;
@@ -99,6 +149,20 @@ export default function GraphView({
 
     /* 1️⃣ データ準備 */
     const { nodes, links } = filterByTime(work, time);
+    markOppositePairs(links);
+    // filterByTime の後
+    // links.forEach(l => {
+    //   // key を「source|target」ソートで作る
+    //   //const key = [l.source.id, l.target.id].sort().join('|');
+    //   const twin = links.find(
+    //     o => o !== l &&
+    //       ((o.source.id === l.source.id && o.target.id === l.target.id) ||
+    //       (o.source.id === l.target.id && o.target.id === l.source.id))
+    //   );
+    //   // 曲率 0 = 直線, ±1 = 弧
+    //   (l as any).curvature = twin ? (l.source.id < l.target.id ? 0.3 : -0.3) : 0;
+    // });
+
 
     /* 2️⃣ SVG と <g> を取得 / 作成 */
     const svg = d3
@@ -114,40 +178,60 @@ export default function GraphView({
     /* 3️⃣ データ結合 (join) */
 
     // --- Links ---
-    const linkSel = g
-      .selectAll<SVGLineElement, LinkDatum>('line.link')
-      .data(links, (d) => d.id)
-      .join(
-        (enter) =>
-          enter
-            .append('line')
-            .attr('class', 'link')
-            .attr('stroke', '#999')
-            .attr('stroke-width', 1.5)
-            .attr('stroke-opacity', 0)
-            .transition()
-            .attr('stroke-opacity', 1),
-        (update) => update,
-        (exit) =>
-          exit.transition().attr('stroke-opacity', 0).remove()
-      );
-
-      /* ★ Link ラベル（線と同じ key で join） */
-      const linkLabelSel = g
-        .selectAll<SVGTextElement, LinkDatum>('text.link-label')
+      const linkSel = g.selectAll<SVGPathElement, LinkDatum>('path.link')
         .data(links, d => d.id)
         .join(
-          enter =>
-            enter.append('text')
-              .attr('class', 'link-label')
-              .attr('font-size', 10)
-              .attr('fill', '#555')
-              .attr('text-anchor', 'middle')
-              .attr('dy', -4)          // 線より少し上
-              .text(d => d.label),
-          update => update.text(d => d.label),
-          exit => exit.remove()
+          enter => enter.append('path')
+                        .attr('class','link')
+                        .attr('stroke','#999')
+                        .attr('fill','none'),
+          update => update,
+          exit   => exit.remove()
         );
+
+      linkSel.attr('d', d => {
+        const s = d.source as NodeDatum;
+        const t = d.target as NodeDatum;
+        const dx = t.x! - s.x!;
+        const dy = t.y! - s.y!;
+        // const dr = Math.hypot(dx, dy) * (d as any).curvature; // 曲率
+        // quadratic Bézier弧:  M x1 y1  Q cx cy x2 y2
+        const cx = s.x! + dx/2 + (-dy) * (d as any).curvature;
+        const cy = s.y! + dy/2 + ( dx) * (d as any).curvature;
+        return `M${s.x},${s.y} Q${cx},${cy} ${t.x},${t.y}`;
+      });
+
+        
+        /* path に id を付与 */
+        linkSel.attr('id', d => `link-${d.id}`);
+
+        /* ラベル join */
+        const labelSel = g
+          .selectAll<SVGTextElement, LinkDatum>('text.link-label')
+          .data(links, d => d.id)
+          .join(
+            /* ---------- enter ---------- */
+            enter => {
+              const txt = enter.append('text')
+                              .attr('class', 'link-label')
+                              .attr('font-size', 10)
+                              .attr('startOffset', '50%')
+                              .attr('text-anchor', 'middle')
+                              .attr('href',d => `#link-${d.id}`)
+                              .text(d => d.label)
+              return txt;               // ★ Selection を返す！
+            },
+            /* ---------- update ---------- */
+            update => {
+              update.select('textPath')
+                    .text(d => d.label);
+              return update;            // ★ 必ず同じ Selection 型を返す
+            },
+            /* ---------- exit ---------- */
+            exit => exit.remove()       // remove() は Selection を返すので OK
+          );
+
+
 
     // --- Nodes ---
     const nodeSel = g
@@ -193,23 +277,28 @@ export default function GraphView({
     colaSim.on('tick', () => {
       nodeSel.attr('transform', (d) => `translate(${d.x},${d.y})`);
 
-      linkSel
-        .attr('x1', (d) => (d.source as NodeDatum).x ?? 0)
-        .attr('y1', (d) => (d.source as NodeDatum).y ?? 0)
-        .attr('x2', (d) => (d.target as NodeDatum).x ?? 0)
-        .attr('y2', (d) => (d.target as NodeDatum).y ?? 0);
-
-      linkLabelSel
+      linkSel.attr('d', arcPath);
+      labelSel
         .attr('x', d => {
           const s = d.source as NodeDatum;
           const t = d.target as NodeDatum;
-          return (s.x! + t.x!) / 2;
+          const mx = (s.x! + t.x!) / 2;               // 中点
+          const dx = t.x! - s.x!;
+          const dy = t.y! - s.y!;
+          const dist = Math.hypot(dx, dy) || 1;
+          const nx = -dy / dist;                      // 単位法線
+          return mx + nx * LABEL_OFFSET;              // 少し外側
         })
         .attr('y', d => {
           const s = d.source as NodeDatum;
           const t = d.target as NodeDatum;
-          return (s.y! + t.y!) / 2;
-        });
+          const my = (s.y! + t.y!) / 2;
+          const dx = t.x! - s.x!;
+          const dy = t.y! - s.y!;
+          const dist = Math.hypot(dx, dy) || 1;
+          const ny =  dx / dist;                      // 単位法線
+          return my + ny * LABEL_OFFSET;
+        })
       });
 
     /* 6️⃣ クリーンアップ */
