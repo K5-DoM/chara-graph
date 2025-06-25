@@ -247,8 +247,8 @@ export default function GraphView({ work, time, width, height}: Props) {
       1
     );
     
-    const offX = (width  - (maxX - minX) * scale) / 2 + NODE_RADIUS;
-    const offY = (height - (maxY - minY) * scale) / 2 + NODE_RADIUS;
+    const offX = (width  - (maxX - minX) * scale) / 2 + NODE_RADIUS + 10;
+    const offY = (height - (maxY - minY) * scale) / 2 + NODE_RADIUS + 20;
 
     nodes.forEach(n => {
       n.x = (n.x! - minX) * scale + offX;
