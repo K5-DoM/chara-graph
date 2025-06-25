@@ -3,11 +3,13 @@ import { useEffect, useRef } from 'react';
 import * as d3 from 'd3';
 import * as cola from 'webcola';
 import { Work }  from '../types';
+import { convertFileSrc } from '@tauri-apps/api/core';
 
 /*───────── 型定義 ─────────*/
 interface NodeDatum extends cola.Node {
   id : string;
   label : string;
+  imageUrl?:string;
   appearAt : number;
   disappearAt?: number;
 }
@@ -21,6 +23,28 @@ interface LinkDatum extends cola.Link<NodeDatum> {
 
 /*───────── 定数 ─────────*/      // node 半径
 const NODE_RADIUS=10;
+const ARROW_GAP=2;
+const SHRINK= NODE_RADIUS + ARROW_GAP;
+
+function shrinkSegment(
+  sx: number, sy: number,
+  tx: number, ty: number,
+  r: number
+): [number, number, number, number] {
+  const dx = tx - sx;
+  const dy = ty - sy;
+  const dist = Math.hypot(dx, dy) || 1;   // 0 除け
+
+  const ux = dx / dist;  // 単位ベクトル
+  const uy = dy / dist;
+
+  return [
+    sx + ux * r,        // 新しい始点
+    sy + uy * r,
+    tx - ux * r,        // 新しい終点
+    ty - uy * r
+  ];
+}
 
 function linkMidpoint(d: LinkDatum): [number, number] {
   const s = d.source as NodeDatum;
@@ -74,10 +98,12 @@ function arcPath(d: LinkDatum & { curvature?: number }) {
   const t = d.target as NodeDatum;
   const k = Math.abs(d.curvature ?? 0);       // ★ 正値にする
 
-  if (k === 0) return `M${s.x},${s.y} L${t.x},${t.y}`;
+  const [sx, sy, tx, ty] = shrinkSegment(s.x!, s.y!, t.x!, t.y!, SHRINK);
 
-  const dx = t.x! - s.x!;
-  const dy = t.y! - s.y!;
+  if (k === 0) return `M${sx},${sy} L${tx},${ty}`;
+
+  const dx = tx - sx;
+  const dy = ty - sy;
   const dist = Math.hypot(dx, dy) || 1;
 
   // 単位法線ベクトル N = (-dy, dx)/dist
@@ -85,18 +111,18 @@ function arcPath(d: LinkDatum & { curvature?: number }) {
   const ny =  dx / dist;
 
   // 向きが逆なら N も逆向きになるので、ここでは |k| だけ掛ける
-  const mx = (s.x! + t.x!) / 2;
-  const my = (s.y! + t.y!) / 2;
+  const mx = (sx + tx) / 2;
+  const my = (sy + ty) / 2;
   const cx = mx + nx * dist * k;
   const cy = my + ny * dist * k;
 
-  return `M${s.x},${s.y} Q${cx},${cy} ${t.x},${t.y}`;
+  return `M${sx},${sy} Q${cx},${cy} ${tx},${ty}`;
 }
 
 /*───────── 最大グラフを構築 ─────────*/
 function buildFullGraph(work: Work) {
   const nodes: NodeDatum[] = work.characters.map(c => ({
-    id: c.id, label: c.name,
+    id: c.id, label: c.name,imageUrl: c.icon ? convertFileSrc(c.icon) : '',
     appearAt: c.appearAt ?? 0,
     disappearAt: c.disappearAt,
     width: NODE_RADIUS*2, height: NODE_RADIUS*2,
@@ -167,6 +193,30 @@ export default function GraphView({ work, time, width, height}: Props) {
       .attr('width', width)
       .attr('height', height);
 
+    // GraphView 内、最初に SVG を生成した直後などで 1 度だけ
+    const defs = svg
+      .selectAll<SVGDefsElement, unknown>('defs#arrow-defs')
+      .data([null])                // 必ず 1 つ欲しい
+      .join('defs')                // ここで <defs> が出来る
+      .attr('id', 'arrow-defs');
+
+    // 2) マーカーも同じ join パターン
+    defs
+      .selectAll<SVGMarkerElement, unknown>('marker#arrow')
+      .data([null])
+      .join('marker')
+        .attr('id', 'arrow')
+        .attr('viewBox', '0 -5 10 10')
+        .attr('refX', 10)
+        .attr('refY', 0)
+        .attr('markerWidth', 6)
+        .attr('markerHeight', 6)
+        .attr('orient', 'auto')
+        .attr('fill', '#999')               // currentColor にしても OK
+        .append('path')
+          .attr('d', 'M0,-5L10,0L0,5Z');
+
+    
     const g =
       svg.select('g.graph-root');
 
@@ -182,9 +232,26 @@ g.selectAll<SVGGElement, NodeDatum>('g.node')
         .attr('transform', d => `translate(${d.x},${d.y})`)
         .style('opacity', 0);
 
+               /* ① clipPath（丸型） */
+       ng.append('clipPath')
+         .attr('id', d => `clip-${d.id}`)
+         .append('circle')
+         .attr('r', NODE_RADIUS);
+
+       /* ② 画像 */
+       ng.append('image')
+         .attr('href', d => d.imageUrl || '/img/no-image.png') // fallback
+         .attr('x', -NODE_RADIUS)
+         .attr('y', -NODE_RADIUS)
+         .attr('width', NODE_RADIUS * 2)
+         .attr('height', NODE_RADIUS * 2)
+         .attr('clip-path', d => `url(#clip-${d.id})`);
+
       ng.append('circle')
         .attr('r', NODE_RADIUS)
-        .attr('fill', '#4f46e5');
+        .attr('fill', 'none')
+        .attr('stroke','#4f46e5')
+        .attr('stroke-width', 2);
 
       ng.append('text')
         .attr('y', NODE_RADIUS + 12)
@@ -194,8 +261,13 @@ g.selectAll<SVGGElement, NodeDatum>('g.node')
 
       return ng.transition().style('opacity', 1);
     },
-    update => update            // update selection を受け取る
-                .attr('transform', d => `translate(${d.x},${d.y})`),
+    update => {
+      update            // update selection を受け取る
+                .attr('transform', d => `translate(${d.x},${d.y})`);
+                update.select<SVGImageElement>('image')
+                .attr('href', d => d.imageUrl || '/public/no-image.png');
+                return update;
+              },
     exit   => exit.transition().style('opacity', 0).remove()
   );
 
@@ -207,7 +279,8 @@ g.selectAll<SVGGElement, NodeDatum>('g.node')
         enter => enter.append('path')
                       .attr('class','link')
                       .attr('stroke','#999')
-                      .attr('fill','none'),
+                      .attr('fill','none')
+                      .attr('marker-end','url(#arrow'),
         update => update,
         exit   => exit.remove()
       );
