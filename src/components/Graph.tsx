@@ -2,31 +2,53 @@
 import { useEffect, useRef } from 'react';
 import * as d3 from 'd3';
 import * as cola from 'webcola';
-import { Work} from '../types';
+import { Work }  from '../types';
 
-/* ───────── 型定義 ───────── */
+/*───────── 型定義 ─────────*/
 interface NodeDatum extends cola.Node {
-  id: string;
-  label: string;
-  appearAt: number;
+  id : string;
+  label : string;
+  appearAt : number;
   disappearAt?: number;
-  tags: Record<string, string[]>;
 }
-
 interface LinkDatum extends cola.Link<NodeDatum> {
-  id: string;
-  label: string;
-    appearAt: number;
+  id : string;
+  label : string;
+  appearAt : number;
   disappearAt?: number;
+  curvature?: number;          // markOppositePairs が付与
 }
 
-/* ───────── Utility ───────── */
-const NODE_RADIUS = 10;
-const LABEL_OFFSET = 14;    
-const NODE_WIDTH = NODE_RADIUS * 2;
-const NODE_HEIGHT = NODE_RADIUS * 2;
+/*───────── 定数 ─────────*/      // node 半径
+const NODE_RADIUS=10;
 
-export function markOppositePairs(links: LinkDatum[], k = 0.25) {
+function linkMidpoint(d: LinkDatum): [number, number] {
+  const s = d.source as NodeDatum;
+  const t = d.target as NodeDatum;
+
+  // ---- 直線の場合 ----
+  if (!d.curvature) {
+    return [(s.x! + t.x!) / 2, (s.y! + t.y!) / 2];
+  }
+
+  // ---- 曲線の場合：制御点を再計算 ----
+  const k = Math.abs(d.curvature);
+  const dx = t.x! - s.x!;
+  const dy = t.y! - s.y!;
+  const dist = Math.hypot(dx, dy) || 1;
+  const nx = -dy / dist;
+  const ny =  dx / dist;
+  const cx = (s.x! + t.x!) / 2 + nx * dist * k;
+  const cy = (s.y! + t.y!) / 2 + ny * dist * k;
+
+  // 2 次 Bézier の t=0.5: (1/4)P0 + (1/2)C + (1/4)P2
+  const x = 0.25 * s.x! + 0.5 * cx + 0.25 * t.x!;
+  const y = 0.25 * s.y! + 0.5 * cy + 0.25 * t.y!;
+  return [x, y];
+}
+
+/*───────── 既存 util 再掲 ─────────*/
+function markOppositePairs(links: LinkDatum[], k = 0.25) {
   const bucket = new Map<string, { a2b?: LinkDatum; b2a?: LinkDatum }>();
 
   links.forEach(l => {
@@ -47,60 +69,6 @@ export function markOppositePairs(links: LinkDatum[], k = 0.25) {
     }
   });
 }
-
-
-/** 時刻 t で有効な nodes / links を取得  */
-function filterByTime(work: Work, t: number) {
-  /* ノード抽出 */
-  const nodes: NodeDatum[] = work.characters
-    .filter(
-      (c) =>
-        (c.appearAt ?? 0) <= t &&
-        !(c.disappearAt !== undefined && c.disappearAt <= t)
-    )
-    .map(
-      (c): NodeDatum => ({
-        id: c.id,
-        label: c.name,
-        appearAt: c.appearAt ?? 0,
-        disappearAt: c.disappearAt,
-        tags: c.tags,
-        /* Cola が要求する寸法 (px) */
-        width: NODE_WIDTH,
-        height: NODE_HEIGHT,
-        x: 0,
-        y: 0,
-      })
-    );
-
-  const id2node = new Map(nodes.map((n) => [n.id, n]));
-
-  /* リンク抽出 + ラベル最新化 */
-  const links: LinkDatum[] = (work.relations ?? [])
-    .filter((r) => id2node.has(r.sourceId) && id2node.has(r.targetId))
-    .filter((r) => {
-      const created =r.appearAt ?? 0;
-      const removed =r.disappearAt ?? Infinity;
-      return created <= t && t < removed;
-    })
-    .map(
-      (r): LinkDatum => {
-        // 最新 update ラベル
-        let lbl = r.label;
-        return {
-          id: r.id,
-          source: id2node.get(r.sourceId)!,
-          target: id2node.get(r.targetId)!,
-          appearAt: r.appearAt,
-          disappearAt: r.disappearAt,
-          label: lbl,
-        };
-      }
-    );
-
-  return { nodes, links };
-}
-
 function arcPath(d: LinkDatum & { curvature?: number }) {
   const s = d.source as NodeDatum;
   const t = d.target as NodeDatum;
@@ -125,192 +93,164 @@ function arcPath(d: LinkDatum & { curvature?: number }) {
   return `M${s.x},${s.y} Q${cx},${cy} ${t.x},${t.y}`;
 }
 
+/*───────── 最大グラフを構築 ─────────*/
+function buildFullGraph(work: Work) {
+  const nodes: NodeDatum[] = work.characters.map(c => ({
+    id: c.id, label: c.name,
+    appearAt: c.appearAt ?? 0,
+    disappearAt: c.disappearAt,
+    width: NODE_RADIUS*2, height: NODE_RADIUS*2,
+    x: 0, y: 0
+  }));
+  const id2 = Object.fromEntries(nodes.map(n => [n.id, n]));
+  const links: LinkDatum[] = work.relations.map(r => ({
+    id: r.id, label: r.label,
+    appearAt: r.appearAt, disappearAt: r.disappearAt,
+    source: id2[r.sourceId], target: id2[r.targetId]
+  }));
+  markOppositePairs(links);
+  return { nodes, links };
+}
 
+/*───────── メインコンポーネント ─────────*/
+type Props = { work: Work; time: number,width:number,height:number};
 
-/* ─────────  Props  ───────── */
-type Props = {
-  work: Work;
-  time: number;
-  width?: number;
-  height?: number;
-};
+export default function GraphView({ work, time, width, height}: Props) {
 
-/* ───────── Component  ───────── */
-export default function GraphView({
-  work,
-  time,
-  width = 800,
-  height = 600,
-}: Props) {
-  const ref = useRef<SVGSVGElement>(null);
+  /*―――― 1) 最大グラフ & 位置キャッシュ ――――*/
+  const fullRef   = useRef<{nodes: NodeDatum[]; links: LinkDatum[]} | null>(null);
+  const posRef    = useRef<Record<string, [number, number]>>({});
+  const solvedRef = useRef(false);
+
+  if (!fullRef.current) fullRef.current = buildFullGraph(work);
+
+  /*―――― 初回だけレイアウト ――――*/
+  useEffect(() => {
+    if (solvedRef.current) return;
+
+    const { nodes, links } = fullRef.current!;
+    cola.d3adaptor(d3)
+      .size([width, height])
+      .handleDisconnected(true)
+      .avoidOverlaps(true)
+      .linkDistance(140)
+      .nodes(nodes)
+      .links(links)
+      .start(80, 0, 50)          // しっかり回す
+      .on('end', () => {
+        nodes.forEach(n => (posRef.current[n.id] = [n.x!, n.y!]));
+        solvedRef.current = true;
+      });
+  }, []);
+
+  /*―――― time が変わったら描画だけ更新 ――――*/
+  const svgRef = useRef<SVGSVGElement>(null);
 
   useEffect(() => {
-    if (!ref.current) return;
+    if (!solvedRef.current || !svgRef.current) return;
 
-    /* 1️⃣ データ準備 */
-    const { nodes, links } = filterByTime(work, time);
-    markOppositePairs(links);
-    // filterByTime の後
-    // links.forEach(l => {
-    //   // key を「source|target」ソートで作る
-    //   //const key = [l.source.id, l.target.id].sort().join('|');
-    //   const twin = links.find(
-    //     o => o !== l &&
-    //       ((o.source.id === l.source.id && o.target.id === l.target.id) ||
-    //       (o.source.id === l.target.id && o.target.id === l.source.id))
-    //   );
-    //   // 曲率 0 = 直線, ±1 = 弧
-    //   (l as any).curvature = twin ? (l.source.id < l.target.id ? 0.3 : -0.3) : 0;
-    // });
+    /* ① time でフィルタリング */
+    const { nodes: allN, links: allL } = fullRef.current!;
+    const nodes = allN.filter(n => n.appearAt <= time && (n.disappearAt ?? 1e9) > time);
+    const idSet = new Set(nodes.map(n => n.id));
+    const links = allL.filter(l => idSet.has(l.source.id as string) &&
+                                   idSet.has(l.target.id as string) &&
+                                   l.appearAt <= time &&
+                                   (l.disappearAt ?? 1e9) > time);
 
+    /* ② 座標をキャッシュから復元 */
+    nodes.forEach(n => { const p = posRef.current[n.id]; n.x=p[0]; n.y=p[1]; });
 
-    /* 2️⃣ SVG と <g> を取得 / 作成 */
+    /* ③ join 描画 */
     const svg = d3
-      .select(ref.current)
+      .select(svgRef.current)
       .attr('width', width)
       .attr('height', height);
 
     const g =
-      svg.select<SVGGElement>('g.graph-root').empty()
-        ? svg.append('g').attr('class', 'graph-root')
-        : svg.select<SVGGElement>('g.graph-root');
+      svg.select('g.graph-root');
 
     /* 3️⃣ データ結合 (join) */
 
+g.selectAll<SVGGElement, NodeDatum>('g.node')
+  .data(nodes, d => d.id)
+  .join(
+    enter => {
+      // --- enter ---
+      const ng = enter.append('g')
+        .attr('class', 'node')
+        .attr('transform', d => `translate(${d.x},${d.y})`)
+        .style('opacity', 0);
+
+      ng.append('circle')
+        .attr('r', NODE_RADIUS)
+        .attr('fill', '#4f46e5');
+
+      ng.append('text')
+        .attr('y', NODE_RADIUS + 12)
+        .attr('text-anchor', 'middle')
+        .attr('font-size', 10)
+        .text(d => d.label);
+
+      return ng.transition().style('opacity', 1);
+    },
+    update => update            // update selection を受け取る
+                .attr('transform', d => `translate(${d.x},${d.y})`),
+    exit   => exit.transition().style('opacity', 0).remove()
+  );
+
+
     // --- Links ---
-      const linkSel = g.selectAll<SVGPathElement, LinkDatum>('path.link')
-        .data(links, d => d.id)
-        .join(
-          enter => enter.append('path')
-                        .attr('class','link')
-                        .attr('stroke','#999')
-                        .attr('fill','none'),
-          update => update,
-          exit   => exit.remove()
-        );
-
-      linkSel.attr('d', d => {
-        const s = d.source as NodeDatum;
-        const t = d.target as NodeDatum;
-        const dx = t.x! - s.x!;
-        const dy = t.y! - s.y!;
-        // const dr = Math.hypot(dx, dy) * (d as any).curvature; // 曲率
-        // quadratic Bézier弧:  M x1 y1  Q cx cy x2 y2
-        const cx = s.x! + dx/2 + (-dy) * (d as any).curvature;
-        const cy = s.y! + dy/2 + ( dx) * (d as any).curvature;
-        return `M${s.x},${s.y} Q${cx},${cy} ${t.x},${t.y}`;
-      });
-
-        
-        /* path に id を付与 */
-        linkSel.attr('id', d => `link-${d.id}`);
-
-        /* ラベル join */
-        const labelSel = g
-          .selectAll<SVGTextElement, LinkDatum>('text.link-label')
-          .data(links, d => d.id)
-          .join(
-            /* ---------- enter ---------- */
-            enter => {
-              const txt = enter.append('text')
-                              .attr('class', 'link-label')
-                              .attr('font-size', 10)
-                              .attr('startOffset', '50%')
-                              .attr('text-anchor', 'middle')
-                              .attr('href',d => `#link-${d.id}`)
-                              .text(d => d.label)
-              return txt;               // ★ Selection を返す！
-            },
-            /* ---------- update ---------- */
-            update => {
-              update.select('textPath')
-                    .text(d => d.label);
-              return update;            // ★ 必ず同じ Selection 型を返す
-            },
-            /* ---------- exit ---------- */
-            exit => exit.remove()       // remove() は Selection を返すので OK
-          );
-
-
-
-    // --- Nodes ---
-    const nodeSel = g
-      .selectAll<SVGGElement, NodeDatum>('g.node')
-      .data(nodes, (d) => d.id)
+    const linkSel = g.selectAll<SVGPathElement, LinkDatum>('path.link')
+      .data(links, d => d.id)
       .join(
-        (enter) => {
-          const ng = enter
-            .append('g')
-            .attr('class', 'node')
-            .style('opacity', 0);
-
-          ng.append('circle')
-            .attr('r', NODE_RADIUS)
-            .attr('fill', '#4f46e5');
-
-          ng.append('text')
-            .attr('x', 0)
-            .attr('y', NODE_RADIUS+12)
-            .attr('text-anchor','middle')
-            .attr('font-size', 10)
-            .text(d => d.label);
-
-          return ng.transition().style('opacity', 1);
-        },
-        (update) => update,
-        (exit) => exit.transition().style('opacity', 0).remove()
+        enter => enter.append('path')
+                      .attr('class','link')
+                      .attr('stroke','#999')
+                      .attr('fill','none'),
+        update => update,
+        exit   => exit.remove()
       );
 
-    /* 4️⃣ Cola レイアウト */
-    const colaSim = cola
-      .d3adaptor(d3) // 型が合わないので any キャスト
-      .size([width, height])
-      .handleDisconnected(true)
-      .avoidOverlaps(true)
-      .nodes(nodes)
-      .links(links)
-      .linkDistance(140)
-      .jaccardLinkLengths(140, 0.7)
-      .start(60, 0, 20);
+    linkSel.attr('d',arcPath);
 
-    /* 5️⃣ tick → SVG 座標更新 */
-    colaSim.on('tick', () => {
-      nodeSel.attr('transform', (d) => `translate(${d.x},${d.y})`);
+        
+    /* path に id を付与 */
+    linkSel.attr('id', d => `link-${d.id}`);
 
-      linkSel.attr('d', arcPath);
-      labelSel
-        .attr('x', d => {
-          const s = d.source as NodeDatum;
-          const t = d.target as NodeDatum;
-          const mx = (s.x! + t.x!) / 2;               // 中点
-          const dx = t.x! - s.x!;
-          const dy = t.y! - s.y!;
-          const dist = Math.hypot(dx, dy) || 1;
-          const nx = -dy / dist;                      // 単位法線
-          return mx + nx * LABEL_OFFSET;              // 少し外側
-        })
-        .attr('y', d => {
-          const s = d.source as NodeDatum;
-          const t = d.target as NodeDatum;
-          const my = (s.y! + t.y!) / 2;
-          const dx = t.x! - s.x!;
-          const dy = t.y! - s.y!;
-          const dist = Math.hypot(dx, dy) || 1;
-          const ny =  dx / dist;                      // 単位法線
-          return my + ny * LABEL_OFFSET;
-        })
-      });
+        /* ラベル join */
+    g.selectAll<SVGTextElement, LinkDatum>('text.link-label')
+      .data(links, d => d.id)
+      .join(
+        /* ---------- enter ---------- */
+        enter => {
+          const txt = enter.append('text')
+                          .attr('class', 'link-label')
+                          .attr('font-size', 10)
+                          .attr('text-anchor', 'middle')
+                          .attr('href',d => `#link-${d.id}`)
+                          .text(d => d.label)
+          return txt;               // ★ Selection を返す！
+        },
+        /* ---------- update ---------- */
+        update => update,      // ★ 必ず同じ Selection 型を返す
+        
+        /* ---------- exit ---------- */
+        exit => exit.remove()       // remove() は Selection を返すので OK
+      )
+      .attr('x', d => linkMidpoint(d)[0])
+      .attr('y', d => linkMidpoint(d)[1]);
 
-    /* 6️⃣ クリーンアップ */
-    return () => {
-      colaSim.stop();
-      g.selectAll('.node,.link').remove();
-    };
-  }, [work, time, width, height]);
+  });
 
+    // --- Nodes ---
+
+
+  /*―――― JSX ――――*/
   return (
-    <svg ref={ref}>
+    <svg ref={svgRef}>
       <g className="graph-root" />
     </svg>
   );
+
 }

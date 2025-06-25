@@ -132,23 +132,25 @@ function App() {
             />
           )}
           {mode === 'graph' && currentWork && (
-            <>
+              < >
               <input
                 type="range"
                 min={0}
                 max={currentWork.maxTime}
                 value={time}
                 onChange={e => setTime(+e.target.value)}
-                className="w-full"
+                className="sticky top-0 left-0 w-full z-10 bg-transparent"
               />
-              <GraphView work={currentWork} time={time} width={600} height={500}/>
-            </>
+              <div className="relative" style={{ width: 600, height: 500 }}>
+                <GraphView work={currentWork} time={time} width={600} height={500}/>
+              </div>
+              </>
           )}
           </div>
         </div>
 
         {/* 右側：JSON（または将来的にグラフ） */}
-        <div className="w-1/2 p-4 overflow-auto bg-gray-100">
+        {/* <div className="w-1/2 p-4 overflow-auto bg-gray-100">
           {currentWork ? (
             <pre className="bg-white p-3 border rounded text-sm whitespace-pre-wrap">
               {JSON.stringify(currentWork, null, 2)}
@@ -156,7 +158,7 @@ function App() {
           ) : (
             <p className="text-gray-500">作品が読み込まれていません。</p>
           )}
-        </div>
+        </div> */}
       </div>
     </>
   );
