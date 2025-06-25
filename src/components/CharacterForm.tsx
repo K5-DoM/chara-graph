@@ -9,6 +9,13 @@ type Props = {
   onDelete: (charId: string) => void;
 };
 
+function moveAt<T>(arr: T[], from: number, to: number): T[] {
+  const copy = arr.slice();
+  const [item] = copy.splice(from, 1);
+  copy.splice(to, 0, item);
+  return copy;
+}
+
 /* ─── タグ初期化ヘルパー ─── */
 function makeInitialTags(
   tagCategories: TagCategory[]
@@ -248,16 +255,34 @@ export default function CharacterForm({
 
       {/* 一覧 */}
       <div className="border-t pt-4">
-        <h3 className="text-lg font-semibold mb-2">既存キャラクター</h3>
+        <h3 className="text-lg font-semibold mb-2">既存キャラクター（Tabで選択・上下キーで移動）</h3>
         <ul className="space-y-2">
-          {existingCharacters.map((c) => {
+          {existingCharacters.map((c,idx) => {
             const ended = c.disappearAt !== undefined;
             return (
               <li
                 key={c.id}
-                className={`flex justify-between items-center p-2 rounded ${
-                  ended ? 'bg-gray-200 text-gray-500' : 'bg-gray-50'
-                }`}
+                id={`char-${c.id}`} 
+                tabIndex={0}
+                className={`flex justify-between items-center p-2 rounded
+                focus:ring-2 focus:ring-blue-400 cursor-pointer
+                ${ended ? 'bg-gray-200 text-gray-500' : 'bg-gray-50'}`}
+                onKeyDown={e => {
+                  if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+
+                  e.preventDefault();        // スクロール抑制
+                  const dir = e.key === 'ArrowUp' ? -1 : 1;
+                  const next = idx + dir;
+                  if (next < 0 || next >= existingCharacters.length) return;
+
+                  const reordered = moveAt(existingCharacters, idx, next);
+                  onUpdate(reordered);
+
+                  /* 再レンダリング後に自分にフォーカスを戻す */
+                  requestAnimationFrame(() => {
+                    document.getElementById(`char-${c.id}`)?.focus();
+                  });
+                }}
               >
                 <span>
                   {c.name}{' '}

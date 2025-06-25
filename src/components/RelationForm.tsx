@@ -8,6 +8,13 @@ type Props = {
   onUpdate: (relations: Relation[]) => void;
 };
 
+function moveAt<T>(arr: T[], from: number, to: number): T[] {
+  const copy = arr.slice();
+  const [item] = copy.splice(from, 1);
+  copy.splice(to, 0, item);
+  return copy;
+}
+
 export default function RelationForm({
   characters,
   existingRelations,
@@ -155,13 +162,36 @@ export default function RelationForm({
 
       {/* 一覧 */}
       <div className="border-t pt-4">
-        <h3 className="text-lg font-semibold mb-2">既存の関係性</h3>
+        <h3 className="text-lg font-semibold mb-2">既存の関係性（Tabで選択・上下キーで移動）</h3>
         <ul className="space-y-2">
-          {existingRelations.map(rel => {
+          {existingRelations.map((rel,idx) => {
+            const ended = rel.disappearAt !== undefined;
             const from = characters.find(c => c.id === rel.sourceId)?.name;
             const to   = characters.find(c => c.id === rel.targetId)?.name;
             return (
-              <li key={rel.id} className="flex justify-between items-center bg-gray-50 p-2 rounded">
+              <li key={rel.id}
+              id={`char-${rel.id}`} 
+              tabIndex={0}
+              className={`flex justify-between items-center p-2 rounded
+                focus:ring-2 focus:ring-blue-400 cursor-pointer
+                ${ended ? 'bg-gray-200 text-gray-500' : 'bg-gray-50'}`}
+                onKeyDown={e => {
+                  if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+
+                  e.preventDefault();        // スクロール抑制
+                  const dir = e.key === 'ArrowUp' ? -1 : 1;
+                  const next = idx + dir;
+                  if (next < 0 || next >= existingRelations.length) return;
+
+                  const reordered = moveAt(existingRelations, idx, next);
+                  onUpdate(reordered);
+
+                  /* 再レンダリング後に自分にフォーカスを戻す */
+                  requestAnimationFrame(() => {
+                    document.getElementById(`char-${rel.id}`)?.focus();
+                  });
+                }}
+                >
                 <span>
                   {from} → {to} : {rel.label}
                   <span className="text-xs text-gray-500">
