@@ -155,19 +155,40 @@ export default function GraphView({ work, time, width, height}: Props) {
     if (solvedRef.current) return;
 
     const { nodes, links } = fullRef.current!;
+
+    const LAYOUT_K = 5;                     // キャンバス倍率
+    const simWidth  = width  * LAYOUT_K;
+    const simHeight = height * LAYOUT_K;
+    const linkDist = Math.max(50, 300 / Math.sqrt(nodes.length) );
     cola.d3adaptor(d3)
-      .size([width, height])
-      .handleDisconnected(true)
+      .size([simWidth, simHeight])
+      .handleDisconnected(false)
       .avoidOverlaps(true)
-      .linkDistance(140)
+      .linkDistance(linkDist)
       .nodes(nodes)
       .links(links)
       .start(80, 0, 50)          // しっかり回す
       .on('end', () => {
-        nodes.forEach(n => (posRef.current[n.id] = [n.x!, n.y!]));
+      /* 3) min/max を取って実表示エリアにスケール */
+     const xs = nodes.map(n => n.x!);
+     const ys = nodes.map(n => n.y!);
+     const minX = Math.min(...xs), maxX = Math.max(...xs);
+     const minY = Math.min(...ys), maxY = Math.max(...ys);
+
+     const scale = Math.min(
+       width  / (maxX - minX + NODE_RADIUS * 2),
+       height / (maxY - minY + NODE_RADIUS * 2),
+      1      // 拡大はしない
+     );
+
+     nodes.forEach(n => {
+       n.x = (n.x! - minX) * scale + NODE_RADIUS;
+       n.y = (n.y! - minY) * scale + NODE_RADIUS;
+       posRef.current[n.id] = [n.x, n.y];   // ← キャッシュはスケール後
+     });
         solvedRef.current = true;
       });
-  }, []);
+  }, [width,height]);
 
   /*―――― time が変わったら描画だけ更新 ――――*/
   const svgRef = useRef<SVGSVGElement>(null);
@@ -321,9 +342,11 @@ g.selectAll<SVGGElement, NodeDatum>('g.node')
 
   /*―――― JSX ――――*/
   return (
-    <svg ref={svgRef}>
-      <g className="graph-root" />
-    </svg>
+    <div style={{width, height, overflow: 'auto'}}>
+      <svg ref={svgRef} width={width} height={height}>
+        <g className="graph-root" />
+      </svg>
+    </div>
   );
 
 }

@@ -141,8 +141,8 @@ function App() {
                 onChange={e => setTime(+e.target.value)}
                 className="sticky top-0 left-0 w-full z-10 bg-transparent"
               />
-              <div className="relative" style={{ width: 600, height: 500 }}>
-                <GraphView work={currentWork} time={time} width={600} height={500}/>
+              <div className="relative" style={{ width: 800, height: 500 }}>
+                <GraphView work={currentWork} time={time} width={800} height={500}/>
               </div>
               </>
           )}
