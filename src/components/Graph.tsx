@@ -1,19 +1,20 @@
 // GraphView.tsx
 import { useEffect, useRef } from 'react';
 import * as d3 from 'd3';
-import * as cola from 'webcola';
 import { Work }  from '../types';
 import { convertFileSrc } from '@tauri-apps/api/core';
 
 /*───────── 型定義 ─────────*/
-interface NodeDatum extends cola.Node {
+interface NodeDatum extends d3.SimulationNodeDatum{
   id : string;
   label : string;
   imageUrl?:string;
   appearAt : number;
   disappearAt?: number;
+  width:number,
+  height:number;
 }
-interface LinkDatum extends cola.Link<NodeDatum> {
+interface LinkDatum extends d3.SimulationLinkDatum<NodeDatum> {
   id : string;
   label : string;
   appearAt : number;
@@ -76,9 +77,10 @@ function markOppositePairs(links: LinkDatum[], k = 0.25) {
   const bucket = new Map<string, { a2b?: LinkDatum; b2a?: LinkDatum }>();
 
   links.forEach(l => {
-    const [a, b] = [l.source.id as string, l.target.id as string];
+    const s = l.source as NodeDatum;
+    const t = l.target as NodeDatum;
+    const [a, b] = [s.id as string, t.id as string];
     const key = [a, b].sort().join('|');
-
     const box = bucket.get(key) ?? {};
     if (a < b) box.a2b = l; else box.b2a = l;
     bucket.set(key, box);
@@ -119,14 +121,63 @@ function arcPath(d: LinkDatum & { curvature?: number }) {
   return `M${sx},${sy} Q${cx},${cy} ${tx},${ty}`;
 }
 
+function forceNodeEdgeCollision(
+  links: LinkDatum[],
+  nodeRadius: number,
+  padding = 4,
+  strength = 1.5
+) {
+  const threshold = nodeRadius + padding;
+
+  function force(alpha: number) {
+    for (const l of links) {
+      const sx = (l.source as NodeDatum).x!;
+      const sy = (l.source as NodeDatum).y!;
+      const tx = (l.target as NodeDatum).x!;
+      const ty = (l.target as NodeDatum).y!;
+
+      const dx = tx - sx;
+      const dy = ty - sy;
+      const len2 = dx * dx + dy * dy || 1;
+
+      // ノード n との内積パラメータ t を計算し最近点を得る
+      for (const n of nodes) {          // nodes は外側環境で格納しておく
+        const px = n.x! - sx;
+        const py = n.y! - sy;
+        let t = (px * dx + py * dy) / len2;
+        if (t < 0) t = 0;
+        else if (t > 1) t = 1;
+
+        const nx = sx + t * dx;         // 線分最近点
+        const ny = sy + t * dy;
+
+        const ox = n.x! - nx;
+        const oy = n.y! - ny;
+        const dist2 = ox * ox + oy * oy;
+        const thresh2 = threshold * threshold;
+
+        if (dist2 < thresh2 && dist2 > 0.1) {
+          const dist = Math.sqrt(dist2);
+          const push = (threshold - dist) / dist * alpha * strength;
+          n.vx = (n.vx || 0) + ox * push;
+          n.vy = (n.vy || 0) + oy * push;
+
+        }
+      }
+    }
+  }
+  force.initialize = (_: NodeDatum[]) => { nodes = _; };
+  let nodes: NodeDatum[] = [];
+  return force;
+}
+
 /*───────── 最大グラフを構築 ─────────*/
 function buildFullGraph(work: Work) {
   const nodes: NodeDatum[] = work.characters.map(c => ({
     id: c.id, label: c.name,imageUrl: c.icon ? convertFileSrc(c.icon) : '',
     appearAt: c.appearAt ?? 0,
     disappearAt: c.disappearAt,
-    width: NODE_RADIUS*2, height: NODE_RADIUS*2,
-    x: 0, y: 0
+    width: NODE_RADIUS*2, height: NODE_RADIUS*2
   }));
   const id2 = Object.fromEntries(nodes.map(n => [n.id, n]));
   const links: LinkDatum[] = work.relations.map(r => ({
@@ -155,39 +206,56 @@ export default function GraphView({ work, time, width, height}: Props) {
     if (solvedRef.current) return;
 
     const { nodes, links } = fullRef.current!;
+    nodes.forEach(n => {
+      const cache = posRef.current[n.id];
+      if(cache){
+        n.x = cache[0];
+        n.y = cache[1];
+      }
+      else{
+      n.x = (Math.random() - 0.5) * width*4;
+      n.y = (Math.random() - 0.5) * width*4;
+      }
+    });
+    const sim = d3.forceSimulation(nodes)
+      .force('link',d3.forceLink(links)
+                    .id(d=>(d as NodeDatum).id)
+                    .distance(Math.max(60,300/Math.sqrt(nodes.length))))
+      .force('charge',d3.forceManyBody().strength(-200))
+      .force('collide',d3.forceCollide(NODE_RADIUS+4))
+      .force('center',d3.forceCenter(width/2,height/2))
+      .alpha(1)
+      .alphaDecay(0.05)
+      .stop();
 
-    const LAYOUT_K = 5;                     // キャンバス倍率
-    const simWidth  = width  * LAYOUT_K;
-    const simHeight = height * LAYOUT_K;
-    const linkDist = Math.max(50, 300 / Math.sqrt(nodes.length) );
-    cola.d3adaptor(d3)
-      .size([simWidth, simHeight])
-      .handleDisconnected(false)
-      .avoidOverlaps(true)
-      .linkDistance(linkDist)
-      .nodes(nodes)
-      .links(links)
-      .start(80, 0, 50)          // しっかり回す
-      .on('end', () => {
-      /* 3) min/max を取って実表示エリアにスケール */
-     const xs = nodes.map(n => n.x!);
-     const ys = nodes.map(n => n.y!);
-     const minX = Math.min(...xs), maxX = Math.max(...xs);
-     const minY = Math.min(...ys), maxY = Math.max(...ys);
+    sim.tick(80);
 
-     const scale = Math.min(
-       width  / (maxX - minX + NODE_RADIUS * 2),
-       height / (maxY - minY + NODE_RADIUS * 2),
-      1      // 拡大はしない
-     );
+    d3.forceSimulation(nodes)
+      .alpha(0.6)
+      .alphaDecay(0.15)
+      .force('nodeEdge',forceNodeEdgeCollision(links,NODE_RADIUS,6,1))
+      .stop()
+      .tick(40);
 
-     nodes.forEach(n => {
-       n.x = (n.x! - minX) * scale + NODE_RADIUS;
-       n.y = (n.y! - minY) * scale + NODE_RADIUS;
-       posRef.current[n.id] = [n.x, n.y];   // ← キャッシュはスケール後
-     });
-        solvedRef.current = true;
-      });
+    const xs = nodes.map(n => n.x!), ys = nodes.map(n => n.y!);
+    const minX = Math.min(...xs), maxX = Math.max(...xs);
+    const minY = Math.min(...ys), maxY = Math.max(...ys);
+
+    const scale = Math.min(
+      width  / (maxX - minX + NODE_RADIUS * 2),
+      height / (maxY - minY + NODE_RADIUS * 2),
+      1
+    );
+    
+    const offX = (width  - (maxX - minX) * scale) / 2 + NODE_RADIUS;
+    const offY = (height - (maxY - minY) * scale) / 2 + NODE_RADIUS;
+
+    nodes.forEach(n => {
+      n.x = (n.x! - minX) * scale + offX;
+      n.y = (n.y! - minY) * scale + offY;
+      posRef.current[n.id] = [n.x, n.y];
+    });
+    solvedRef.current = true;
   }, [width,height]);
 
   /*―――― time が変わったら描画だけ更新 ――――*/
@@ -200,10 +268,16 @@ export default function GraphView({ work, time, width, height}: Props) {
     const { nodes: allN, links: allL } = fullRef.current!;
     const nodes = allN.filter(n => n.appearAt <= time && (n.disappearAt ?? 1e9) > time);
     const idSet = new Set(nodes.map(n => n.id));
-    const links = allL.filter(l => idSet.has(l.source.id as string) &&
-                                   idSet.has(l.target.id as string) &&
-                                   l.appearAt <= time &&
-                                   (l.disappearAt ?? 1e9) > time);
+    const links = allL.filter(l => {
+      const s = l.source as NodeDatum;
+      const t = l.target as NodeDatum;
+      return (
+        idSet.has(s.id) &&
+        idSet.has(t.id) &&
+        l.appearAt <= time &&
+        (l.disappearAt ?? 1e9) > time
+      );
+    });
 
     /* ② 座標をキャッシュから復元 */
     nodes.forEach(n => { const p = posRef.current[n.id]; n.x=p[0]; n.y=p[1]; });
@@ -243,54 +317,55 @@ export default function GraphView({ work, time, width, height}: Props) {
 
     /* 3️⃣ データ結合 (join) */
 
-g.selectAll<SVGGElement, NodeDatum>('g.node')
-  .data(nodes, d => d.id)
-  .join(
-    enter => {
-      // --- enter ---
-      const ng = enter.append('g')
-        .attr('class', 'node')
-        .attr('transform', d => `translate(${d.x},${d.y})`)
-        .style('opacity', 0);
+    g.selectAll<SVGGElement, NodeDatum>('g.node')
+      .data(nodes, d => d.id)
+      .join(
+      enter => {
+        // --- enter ---
+        const ng = enter.append('g')
+          .attr('class', 'node')
+          .attr('transform', d => `translate(${d.x},${d.y})`)
+          .style('opacity', 0);
 
-               /* ① clipPath（丸型） */
-       ng.append('clipPath')
-         .attr('id', d => `clip-${d.id}`)
-         .append('circle')
-         .attr('r', NODE_RADIUS);
+                /* ① clipPath（丸型） */
+        ng.append('clipPath')
+          .attr('id', d => `clip-${d.id}`)
+          .append('circle')
+          .attr('r', NODE_RADIUS);
 
-       /* ② 画像 */
-       ng.append('image')
-         .attr('href', d => d.imageUrl || '/img/no-image.png') // fallback
-         .attr('x', -NODE_RADIUS)
-         .attr('y', -NODE_RADIUS)
-         .attr('width', NODE_RADIUS * 2)
-         .attr('height', NODE_RADIUS * 2)
-         .attr('clip-path', d => `url(#clip-${d.id})`);
+        /* ② 画像 */
+        ng.append('image')
+          .attr('href', d => d.imageUrl || '/img/no-image.png') // fallback
+          .attr('x', -NODE_RADIUS)
+          .attr('y', -NODE_RADIUS)
+          .attr('width', NODE_RADIUS * 2)
+          .attr('height', NODE_RADIUS * 2)
+          .attr('clip-path', d => `url(#clip-${d.id})`);
 
-      ng.append('circle')
-        .attr('r', NODE_RADIUS)
-        .attr('fill', 'none')
-        .attr('stroke','#4f46e5')
-        .attr('stroke-width', 2);
+        ng.append('circle')
+          .attr('r', NODE_RADIUS)
+          .attr('fill', 'none')
+          .attr('stroke','#4f46e5')
+          .attr('stroke-width', 2);
 
-      ng.append('text')
-        .attr('y', NODE_RADIUS + 12)
-        .attr('text-anchor', 'middle')
-        .attr('font-size', 10)
-        .text(d => d.label);
+        ng.append('text')
+          .attr('y', NODE_RADIUS + 12)
+          .attr('text-anchor', 'middle')
+          .attr('font-size', 10)
+          .text(d => d.label);
 
-      return ng.transition().style('opacity', 1);
-    },
-    update => {
-      update            // update selection を受け取る
-                .attr('transform', d => `translate(${d.x},${d.y})`);
-                update.select<SVGImageElement>('image')
-                .attr('href', d => d.imageUrl || '/public/no-image.png');
-                return update;
-              },
-    exit   => exit.transition().style('opacity', 0).remove()
-  );
+        return ng.transition().style('opacity', 1);
+      },
+      update => {
+        update            // update selection を受け取る
+        .attr('transform', d => `translate(${d.x},${d.y})`);
+        update.select<SVGImageElement>('image')
+        .attr('href', d => d.imageUrl || '/public/no-image.png');
+        return update;
+      },
+      exit   => exit.transition().style('opacity', 0).remove()
+    );
+    console.log('after nodeEdge', nodes.map(n => [n.x, n.y]));
 
 
     // --- Links ---
@@ -299,9 +374,10 @@ g.selectAll<SVGGElement, NodeDatum>('g.node')
       .join(
         enter => enter.append('path')
                       .attr('class','link')
+                      .attr('stroke-width', 1.5)
                       .attr('stroke','#999')
                       .attr('fill','none')
-                      .attr('marker-end','url(#arrow'),
+                      .attr('marker-end', 'url(#arrow)'),
         update => update,
         exit   => exit.remove()
       );
