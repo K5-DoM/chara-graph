@@ -4,7 +4,7 @@ This application for creating character relationship diagrams that change over t
 This application runs on a local PC.
 
 # How to build
-`npm install`
+`npm install`<br>
 `npm run tauri build`
 
 # Tauri + React + Typescript
