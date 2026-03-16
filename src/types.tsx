@@ -1,40 +1,58 @@
+// types.tsx
+export type Organization = {
+  id: string;
+  name: string;
+  parentId?: string;
+};
+
 export type TagCategory = {
-    id: string;
-    name: string; // 例: 性格, 能力
-    options: string[]; // 例: ["元気", "クール"]
-    multi:boolean;
-  };
-  
-  // キャラクター
-  export type Character = {
-    id: string;
-    name: string;
-    description?:string;
-    tags: {
-      [category: string]: string[]; // 例: { 性格: ["元気"], 性別: ["女性"] }
-    };
-    status?: "alive" | "dead";
-    icon?: string; // アイコンURL or Base64
-  };
-  
-  // キャラクター関係性（ID参照）
-  export type Relation = {
-    id: string;
-    sourceId: string; // Character.id
-    targetId: string; // Character.id
-    label: string;    // 例:「兄弟」「敵対」など
-  };
-  
-  // 作品
-  export type Work = {
-    id: string;
-    title: string;
-    folderPath?: string; // 新規作成フォルダの絶対パス
-    description?: string;
-    characters: Character[];
-    relations?: Relation[];
-    organizations?: string[];
-    tagCategories: TagCategory[];
-    createdAt: string; // ISO形式
-    updatedAt: string;
-  };
+  id: string;
+  name: string;       // 例: 性格, 能力
+  options: string[];  // 例: ["元気", "クール"]
+  multi: boolean;
+};
+
+export type TagChange = {
+  time: number;
+  categoryId: string;
+  tag: string;
+  type: 'add' | 'remove';
+};
+
+export type Character = {
+  id: string;
+  name: string;
+  description?: string;
+  // カテゴリIDをキーにしたマッピングに変更
+  tags: { [categoryId: string]: string[] };
+  tagTimeline?: TagChange[];
+  appearAt?: number;
+  disappearAt?:number;
+  icon?: string;
+  // 所属組織を扱いたい場合
+  organizationIds?: string[];
+};
+
+export type Relation = {
+  id: string;
+  sourceId: string; // Character.id
+  targetId: string; // Character.id
+  label: string;    // 例:「兄弟」「敵対」
+  appearAt:number;
+  disappearAt?:number;
+};
+
+export type Work = {
+  id: string;
+  title: string;
+  nowfilePath?: string;
+  description?: string;
+  characters: Character[];
+  relations: Relation[];
+  // Organization 型の配列として管理
+  organizations: Organization[];
+  tagCategories: TagCategory[];
+  maxTime: number;
+  createdAt: string; // ISO形式
+  updatedAt: string;
+};

@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "chara-graph",
-  "version": "0.1.0",
+  "version": "0.2.1",
   "identifier": "com.chara-graph.app",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -18,18 +18,56 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": {
+        "img-src":"'self' asset: http://asset.localhost blob: data:"
+      },
+      "assetProtocol": {
+        "enable": true,
+        "scope": ["**"]
+      },
+      "capabilities": [
+        {
+          "identifier": "main-user-files-write-read",
+          "description": "Allows the main window to write and read files and open file dialogs.",
+          "windows": ["main"],
+          "permissions": [
+            "dialog:default",
+            "fs:allow-write-file",
+            "fs:allow-read-file",
+            "fs:allow-mkdir",
+            "fs:allow-read-text-file",
+            "fs:allow-write-text-file"
+          ]
+        }
+      ]
     }
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["nsis"],
     "icon": [
-      "icons/32x32.png",
-      "icons/128x128.png",
-      "icons/128x128@2x.png",
-      "icons/icon.icns",
-      "icons/icon.ico"
-    ]
+      "icons/64x64.png",
+      "icons/512x512.png"
+    ],
+    "windows": {
+      "allowDowngrades": true,
+      "nsis": {
+        "installMode": "currentUser",
+        "displayLanguageSelector":true
+      },
+      "certificateThumbprint": "BC0330B72DF46EBC91FB3E0DFC3B3485AB4FC691",
+      "tsp": false,
+      "webviewInstallMode": {
+        "silent": true,
+        "type": "offlineInstaller"
+      },
+      "wix": null
+    },
+    "macOS":{
+      "signingIdentity": "Chara-Graph SelfSign",    
+      "hardenedRuntime": true,
+      "entitlements": null,
+      "providerShortName": null
+    }
   }
 }
