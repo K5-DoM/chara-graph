@@ -1,6 +1,20 @@
-# Tauri + React + Typescript
+# Chara-Graph
 
-This template should help get you started developing with Tauri, React and Typescript in Vite.
+キャラクターの動的相関図の作成デスクトップアプリ
+
+
+## how to build
+```bash
+npm install
+npm run tauri build
+```
+
+## UI
+
+![screenshot1](./screenshot1.png)
+![screenshot2](./screenshot2.png)
+![screenshot3](./screenshot3.png)
+![screenshot4](./screenshot4.png)
 
 ## Recommended IDE Setup
 
