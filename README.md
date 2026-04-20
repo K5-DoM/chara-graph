@@ -1,15 +1,25 @@
-# App Overview
+# Chara-Graph
+## App Overview
 
+キャラクターの動的相関図の作成デスクトップアプリ
 This application for creating character relationship diagrams that change over time.
 This application runs on a local PC.
 
-# How to build
-`npm install`<br>
-`npm run tauri build`
+## Tauri + React + Typescript
 
-# Tauri + React + Typescript
 
-This template should help get you started developing with Tauri, React and Typescript in Vite.
+## how to build
+```bash
+npm install
+npm run tauri build
+```
+
+## UI
+
+![screenshot1](./screenshot1.png)
+![screenshot2](./screenshot2.png)
+![screenshot3](./screenshot3.png)
+![screenshot4](./screenshot4.png)
 
 ## Recommended IDE Setup
 
