@@ -1,14 +1,11 @@
-<<<<<<< HEAD
 # Chara-Graph
-=======
-# App Overview
+## App Overview
 
+キャラクターの動的相関図の作成デスクトップアプリ
 This application for creating character relationship diagrams that change over time.
 This application runs on a local PC.
 
-# Tauri + React + Typescript
-
-キャラクターの動的相関図の作成デスクトップアプリ
+## Tauri + React + Typescript
 
 
 ## how to build
