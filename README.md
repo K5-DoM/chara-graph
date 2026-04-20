@@ -6,12 +6,7 @@
 This application for creating character relationship diagrams that change over time.
 This application runs on a local PC.
 
-# How to build
-`npm install`<br>
-`npm run tauri build`
-
 # Tauri + React + Typescript
->>>>>>> 752cba179f4562fdab47da0f8aaee3fe9f924451
 
 キャラクターの動的相関図の作成デスクトップアプリ
 
